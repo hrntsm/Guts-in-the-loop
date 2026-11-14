@@ -12,18 +12,45 @@ namespace SequentialGallery;
 
 internal partial class GalleryWindow : Window
 {
-    private readonly GrasshopperHost host;
-    private readonly Button[] cells = new Button[25];
-    private readonly double[]?[] applied = new double[25][];
+    private readonly Func<GrasshopperHost> createHost;
+    private readonly TimeSpan? lastSolution;
+    private GrasshopperHost? host;
+    private Button[] cells = Array.Empty<Button>();
+    private double[]?[] applied = Array.Empty<double[]?>();
     private SpsEngine? engine;
     private CancellationTokenSource? cancellation;
     private double[]? selected;
     private bool busy, closeRequested, stopped;
     private int plane = 1, zoom;
-    public GalleryWindow(GrasshopperHost host) {
-        this.host = host;
+    public GalleryWindow(Func<GrasshopperHost> createHost, TimeSpan? lastSolution) {
+        this.createHost = createHost;
+        this.lastSolution = lastSolution;
         InitializeComponent();
-        for (int i = 0; i < 25; i++) {
+        UpdateGridSummary();
+        Closing += OnClosing;
+        Closed += (_, _) => { engine?.Dispose(); host?.Dispose(); cancellation?.Dispose(); };
+    }
+    private void GridSizeChanged(object sender, SelectionChangedEventArgs e) => UpdateGridSummary();
+    private void UpdateGridSummary() {
+        if (RowsChoice?.SelectedItem is not ComboBoxItem row || ColumnsChoice?.SelectedItem is not ComboBoxItem column || GridSummary == null || TimeEstimate == null) return;
+        int count = int.Parse((string)row.Content) * int.Parse((string)column.Content);
+        GridSummary.Text = $"{count} candidate slots";
+        TimeEstimate.Text = lastSolution is { TotalSeconds: > 0 } duration
+            ? $"Last Grasshopper solution: {FormatDuration(duration.TotalSeconds)}. Estimated computation for {count} images: ~{FormatDuration(duration.TotalSeconds * count)}."
+            : "Time estimate unavailable. Complete a Grasshopper solution, then reopen this window.";
+    }
+    private static string FormatDuration(double seconds) => seconds < 1 ? $"{seconds * 1000:F0} ms"
+        : seconds < 60 ? $"{seconds:F1} s" : seconds < 3600 ? $"{seconds / 60:F1} min" : $"{seconds / 3600:F1} h";
+    private async void StartClick(object sender, RoutedEventArgs e) {
+        if (busy || host != null || stopped) return;
+        int rows = int.Parse((string)((ComboBoxItem)RowsChoice.SelectedItem).Content);
+        int columns = int.Parse((string)((ComboBoxItem)ColumnsChoice.SelectedItem).Content);
+        Gallery.Rows = rows;
+        Gallery.Columns = columns;
+        cells = new Button[rows * columns];
+        applied = new double[cells.Length][];
+        Progress.Maximum = cells.Length;
+        for (int i = 0; i < cells.Length; i++) {
             int index = i;
             cells[i] = new Button { Content = "Waiting", IsEnabled = false, Padding = new Thickness(2) };
             cells[i].Click += async (_, _) => await RunAsync(async token => {
@@ -36,14 +63,17 @@ internal partial class GalleryWindow : Window
             });
             Gallery.Children.Add(cells[i]);
         }
-        Loaded += async (_, _) => await RunAsync(async token => {
+        await RunAsync(async token => {
+            host = createHost();
+            SetupPanel.Visibility = Visibility.Collapsed;
+            Gallery.Visibility = GalleryInstructions.Visibility = Progress.Visibility
+                = FinishButton.Visibility = SessionHint.Visibility = Visibility.Visible;
+            PlaneLabel.Text = "Starting exploration";
             Status.Text = "Initializing Sequential Plane Search…";
-            engine = await Task.Run(() => new SpsEngine(host.Dimensions));
+            engine = await Task.Run(() => new SpsEngine(host.Dimensions, rows, columns));
             token.ThrowIfCancellationRequested();
             await GenerateAsync(token);
         });
-        Closing += OnClosing;
-        Closed += (_, _) => { engine?.Dispose(); host.Dispose(); cancellation?.Dispose(); };
     }
     private async Task GenerateAsync(CancellationToken token) {
         PlaneLabel.Text = $"Search plane {plane}   ·   Selection {zoom + 1} of 4";
@@ -53,20 +83,20 @@ internal partial class GalleryWindow : Window
         var parameters = await Task.Run(() => engine!.Grid());
         var watch = Stopwatch.StartNew();
         int outOfRange = 0;
-        for (int i = 0; i < 25; i++) {
+        for (int i = 0; i < cells.Length; i++) {
             token.ThrowIfCancellationRequested();
             if (parameters[i].Any(v => !double.IsFinite(v) || v < 0 || v > 1)) {
                 cells[i].Content = "Out of range";
                 outOfRange++;
             } else {
-                Status.Text = $"Generating candidate {i + 1} / 25…";
-                applied[i] = await host.ApplyAsync(parameters[i], token);
+                Status.Text = $"Generating candidate {i + 1} / {cells.Length}…";
+                applied[i] = await host!.ApplyAsync(parameters[i], token);
                 cells[i].Content = new Image { Source = host.Capture(), Stretch = Stretch.Uniform };
                 cells[i].ToolTip = $"Candidate {i + 1}";
             }
             Progress.Value = i + 1;
         }
-        Status.Text = $"Ready · {25 - outOfRange} images · {outOfRange} out of range · {watch.Elapsed.TotalSeconds:F1}s. Select your preferred design.";
+        Status.Text = $"Ready · {cells.Length - outOfRange} images · {outOfRange} out of range · {watch.Elapsed.TotalSeconds:F1}s. Select your preferred design.";
     }
     private async Task RunAsync(Func<CancellationToken, Task> operation) {
         if (busy) return;
@@ -88,13 +118,15 @@ internal partial class GalleryWindow : Window
         }
     }
     private void UpdateButtons() {
+        StartButton.IsEnabled = !busy && host == null && !stopped;
+        RowsChoice.IsEnabled = ColumnsChoice.IsEnabled = StartButton.IsEnabled;
         FinishButton.IsEnabled = !busy && selected != null;
         CancelButton.Content = busy ? "Cancel generation" : "Close";
-        for (int i = 0; i < 25; i++) cells[i].IsEnabled = !busy && !stopped && applied[i] != null;
+        for (int i = 0; i < cells.Length; i++) cells[i].IsEnabled = !busy && !stopped && applied[i] != null;
     }
     private async void FinishClick(object sender, RoutedEventArgs e) {
         await RunAsync(async token => {
-            await host.ApplyAsync(selected!, token);
+            await host!.ApplyAsync(selected!, token);
             closeRequested = true;
         });
     }

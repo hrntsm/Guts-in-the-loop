@@ -1,3 +1,4 @@
+param([switch] $IconTools)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 Push-Location $root
@@ -21,5 +22,9 @@ try {
         New-Item -ItemType Directory -Force tools | Out-Null
         Invoke-WebRequest 'https://github.com/Kitware/CMake/releases/download/v3.31.6/cmake-3.31.6-windows-x86_64.zip' -OutFile tools/cmake.zip
         Expand-Archive tools/cmake.zip -DestinationPath tools -Force
+    }
+    if ($IconTools) {
+        & npm install --prefix tools/icon-renderer --no-save --package-lock=false '@resvg/resvg-js@2.6.2'
+        if ($LASTEXITCODE -ne 0) { throw 'Icon renderer installation failed. Install Node.js and retry.' }
     }
 } finally { Pop-Location }

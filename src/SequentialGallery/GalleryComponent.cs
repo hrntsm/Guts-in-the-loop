@@ -1,4 +1,6 @@
 using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 using Grasshopper.GUI;
@@ -11,6 +13,14 @@ namespace SequentialGallery;
 
 public sealed class GalleryComponent : GH_Component
 {
+    private static readonly Lazy<Bitmap> sharedIcon = new(() => {
+        using var stream = typeof(GalleryComponent).Assembly.GetManifestResourceStream("SequentialGallery.Gallery.png")
+            ?? throw new InvalidOperationException("The gallery icon resource is missing.");
+        using var image = new Bitmap(stream);
+        return new Bitmap(image);
+    });
+    internal static Bitmap SharedIcon => sharedIcon.Value;
+    protected override Bitmap Icon => SharedIcon;
     private GalleryWindow? window;
     public GalleryComponent() : base("Sequential Gallery", "Gallery",
         "Explore designs with Sequential Plane Search. Double-click to open the gallery.", "Params", "Util") { }
@@ -43,8 +53,9 @@ public sealed class GalleryComponent : GH_Component
             var library = Grasshopper.Instances.ComponentServer.FindAssemblyByObject(this);
             if (library != null) SpsEngine.LibraryDirectory = System.IO.Path.GetDirectoryName(library.Location);
             var doc = OnPingDocument() ?? throw new InvalidOperationException("No Grasshopper document is open.");
-            var host = new GrasshopperHost(doc, Params.Input[0].Sources);
-            window = new GalleryWindow(host);
+            TimeSpan? lastSolution = doc.SolutionDepth == 0 && doc.SolutionState != GH_ProcessStep.Aborted
+                && doc.SolutionSpan > TimeSpan.Zero ? doc.SolutionSpan : null;
+            window = new GalleryWindow(() => new GrasshopperHost(doc, Params.Input[0].Sources), lastSolution);
             window.Closed += (_, _) => window = null;
             window.Show();
         } catch (Exception e) {
@@ -60,6 +71,31 @@ public sealed class GalleryComponent : GH_Component
         base.DocumentContextChanged(document, context);
     }
     private sealed class GalleryAttributes(GalleryComponent owner) : GH_ComponentAttributes(owner) {
+        protected override void Render(GH_Canvas canvas, Graphics graphics, GH_CanvasChannel channel) {
+            if (channel != GH_CanvasChannel.Wires) {
+                base.Render(canvas, graphics, channel);
+                return;
+            }
+            var input = owner.Params.Input[0];
+            var state = graphics.Save();
+            try {
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                foreach (var source in input.Sources) {
+                    bool selected = Selected || source.Attributes.Selected;
+                    if (input.WireDisplay == GH_ParamWireDisplay.hidden && !selected) continue;
+                    var start = source.Attributes.OutputGrip;
+                    var end = input.Attributes.InputGrip;
+                    if (!canvas.Painter.ConnectionVisible(start, end)) continue;
+                    bool emphasized = selected && input.WireDisplay != GH_ParamWireDisplay.faint;
+                    using var path = GH_Painter.ConnectionPath(start, end, GH_WireDirection.right, GH_WireDirection.left);
+                    if (path == null) continue;
+                    using var pen = new Pen(Color.FromArgb(emphasized ? 255 : 70, 155, 27, 48), emphasized ? 3f : 2f);
+                    graphics.DrawPath(pen, path);
+                }
+            } finally {
+                graphics.Restore(state);
+            }
+        }
         public override GH_ObjectResponse RespondToMouseDoubleClick(GH_Canvas sender, GH_CanvasMouseEvent e) {
             owner.OpenGallery();
             return GH_ObjectResponse.Handled;
@@ -68,6 +104,7 @@ public sealed class GalleryComponent : GH_Component
 }
 
 public sealed class GalleryInfo : GH_AssemblyInfo {
+    public override Bitmap Icon => GalleryComponent.SharedIcon;
     public override string Name => "Sequential Gallery";
     public override string Description => "Sequential Plane Search for Grasshopper — hackathon PoC";
     public override Guid Id => new("1b335bd7-a5bb-4b6d-80dc-b3b139436f65");

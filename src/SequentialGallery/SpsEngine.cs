@@ -15,19 +15,21 @@ internal sealed class SpsEngine : SafeHandleZeroOrMinusOneIsInvalid
         NativeLibrary.SetDllImportResolver(typeof(SpsEngine).Assembly, (name, assembly, path) =>
             name == Library ? NativeLibrary.Load(Path.Combine(LibraryDirectory ?? Path.GetDirectoryName(assembly.Location)!, Library)) : IntPtr.Zero);
     }
-    public SpsEngine(int dimensions) : base(true)
+    public SpsEngine(int dimensions, int rows = 5, int columns = 5) : base(true)
     {
         Dimensions = dimensions;
-        SetHandle(Create(dimensions));
+        CandidateCount = rows * columns;
+        SetHandle(Create(dimensions, rows, columns));
         if (IsInvalid) throw new InvalidOperationException(LastError());
     }
     public int Dimensions { get; }
+    public int CandidateCount { get; }
     public double[][] Grid()
     {
-        var flat = new double[25 * Dimensions];
+        var flat = new double[CandidateCount * Dimensions];
         Check(GetGrid(this, flat, flat.Length));
-        var result = new double[25][];
-        for (int i = 0; i < 25; i++) {
+        var result = new double[CandidateCount][];
+        for (int i = 0; i < CandidateCount; i++) {
             result[i] = new double[Dimensions];
             Array.Copy(flat, i * Dimensions, result[i], 0, Dimensions);
         }
@@ -38,7 +40,7 @@ internal sealed class SpsEngine : SafeHandleZeroOrMinusOneIsInvalid
     private static string LastError() => Marshal.PtrToStringUTF8(GetError()) ?? "SPS failed.";
     private static void Check(int result) { if (result != 0) throw new InvalidOperationException(LastError()); }
     [DllImport(Library, EntryPoint = "sg_create", CallingConvention = CallingConvention.Cdecl)]
-    private static extern IntPtr Create(int dimensions);
+    private static extern IntPtr Create(int dimensions, int rows, int columns);
     [DllImport(Library, EntryPoint = "sg_destroy", CallingConvention = CallingConvention.Cdecl)]
     private static extern void Destroy(IntPtr session);
     [DllImport(Library, EntryPoint = "sg_last_error", CallingConvention = CallingConvention.Cdecl)]

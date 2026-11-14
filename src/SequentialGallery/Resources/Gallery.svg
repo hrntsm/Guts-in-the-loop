@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <title>Sequential Gallery</title>
+  <defs>
+    <g id="row">
+      <rect x="2" width="3" height="3" rx="0.6"/>
+      <rect x="6" width="3" height="3" rx="0.6"/>
+      <rect x="10" width="3" height="3" rx="0.6"/>
+      <rect x="14" width="3" height="3" rx="0.6"/>
+      <rect x="18" width="3" height="3" rx="0.6"/>
+    </g>
+  </defs>
+  <g fill="#343b8f">
+    <use href="#row" y="2"/>
+    <use href="#row" y="6"/>
+    <use href="#row" y="10"/>
+    <use href="#row" y="14"/>
+    <use href="#row" y="18"/>
+  </g>
+  <rect x="9.5" y="9.5" width="4" height="4" rx="0.9" fill="#f2a33a"/>
+</svg>

@@ -16,7 +16,8 @@ Sequential Gallery — Windows x64 / Rhino 8.36+ / .NET 10
 2. Restart Rhino and open Grasshopper.
 3. Open samples/Facade.ghx, or connect Number Sliders directly to the
    Variables input of Params > Util > Sequential Gallery.
-4. Set your viewport camera, then double-click Sequential Gallery.
+4. Double-click Sequential Gallery, choose Rows and Columns, frame the active
+   Rhino viewport, then click Start exploration. The default grid is 5x5.
 5. Select preferred images. Four selections advance to the next plane.
 6. Finish with selected design restores the last selected shape.
 

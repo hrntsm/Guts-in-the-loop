@@ -25,4 +25,22 @@ Require(engine.Grid().Length == 25, "Repeated plane updates must work.");
 using var boundary = new SpsEngine(3);
 boundary.Select(0);
 Require(boundary.Grid().Any(x => x.Any(v => v < 0 || v > 1)), "Edge zoom must preserve upstream extrapolation.");
-Console.WriteLine("PASS: C# / C ABI / author SPS, 25 candidates, 2x zoom, two learned plane updates, boundary extrapolation.");
+using var rectangular = new SpsEngine(3, 3, 7);
+var rectangle = rectangular.Grid();
+Require(rectangle.Length == 21, "Expected 21 candidates for a 3x7 grid.");
+Require(rectangle[10].All(x => Math.Abs(x - .5) < 1e-10), "Rectangular grid center must remain at 0.5.");
+rectangular.Select(10);
+var rectangleZoomed = rectangular.Grid();
+foreach (int index in new[] { 11, 17 })
+    for (int j = 0; j < 3; j++)
+        Require(Math.Abs((rectangleZoomed[index][j] - .5) * 2 - (rectangle[index][j] - .5)) < 1e-9,
+            "Rectangular zoom must halve spacing along both axes.");
+for (int click = 1; click < 4; click++) rectangular.Select(10);
+var rectangleNext = rectangular.Grid();
+Require(rectangleNext.Length == 21 && rectangleNext.All(x => x.All(double.IsFinite)), "Rectangular plane update must work.");
+Require(rectangleNext.Where((x, i) => !x.SequenceEqual(rectangle[i])).Any(), "Rectangular fourth selection must update the plane.");
+using var tall = new SpsEngine(3, 9, 3);
+Require(tall.Grid().Length == 27 && tall.Grid()[13].All(x => Math.Abs(x - .5) < 1e-10), "Tall grid must retain its center.");
+tall.Select(0);
+Require(tall.Grid().Any(x => x.Any(v => v < 0 || v > 1)), "Rectangular edge zoom must preserve extrapolation.");
+Console.WriteLine("PASS: C# / C ABI / author SPS, 5x5 and rectangular grids, 2x zoom on both axes, learned plane updates, boundary extrapolation.");

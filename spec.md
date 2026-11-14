@@ -6,6 +6,10 @@
 
 **Scope:** Hackathon proof of concept
 
+**Grid configuration:** The gallery defaults to 5x5. Before starting, users choose rows and columns independently from 3, 5, 7, or 9. References below to 5x5 or 25 candidates describe the default; generation, progress, and selection use the configured candidate count. Rectangular grids use the authors' existing plane-coordinate API without changing the SPS dependency. Zoom remains 2x, with four selections per search plane.
+
+**Time estimate:** When setup opens, read the latest completed document solution duration without triggering recomputation. Display that duration and its product with the selected image count; update the product when grid dimensions change. Mark this as a computation-only estimate excluding redraw, capture, and SPS. Actual costs vary, partial or cached solutions can underestimate recomputation, and out-of-range candidates are skipped. If timing is missing, non-positive, aborted, or still in progress, show that the estimate is unavailable.
+
 ---
 
 ## 1. Purpose
@@ -123,7 +127,7 @@ Perform preference learning and zooming with the original, unrounded SPS coordin
 
 ### 4.6 Opening the gallery
 
-Double-clicking the component opens the WPF gallery. Validate the registered sliders and their ranges during initialization. Display an error and do not start if no variables are registered or unsupported sliders are included.
+Double-clicking the component opens the WPF setup UI without starting SPS, recomputing Grasshopper, capturing images, or changing slider values. Users choose the row and column counts, frame the active Rhino viewport, and press `Start exploration`. Only then validate the registered sliders and their ranges, record the viewport and camera, and initialize SPS. Display an error and do not start if no variables are registered or unsupported sliders are included. Grid settings remain fixed until the window is closed.
 
 ---
 
@@ -242,6 +246,8 @@ After four selections, submit the chosen candidate to SPS. SPS updates its prefe
 ## 8. WPF gallery
 
 ### 8.1 Main window
+
+Use separate setup and gallery views in the same window. Show grid controls and timing estimates only in setup. After Start validates the host, replace setup with the gallery, progress, and finish controls; setup controls do not remain above the images.
 
 Display 25 candidate slots in a separate WPF window, with:
 

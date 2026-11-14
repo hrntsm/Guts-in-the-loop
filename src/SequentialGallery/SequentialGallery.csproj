@@ -10,6 +10,7 @@
     <RhinoInstallDir Condition="'$(RhinoInstallDir)' == ''">C:\Program Files\Rhino 8</RhinoInstallDir>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Resources\Gallery.png" LogicalName="SequentialGallery.Gallery.png" />
     <Reference Include="RhinoCommon"><HintPath>$(RhinoInstallDir)\System\RhinoCommon.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Grasshopper"><HintPath>$(RhinoInstallDir)\Plug-ins\Grasshopper\Grasshopper.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="GH_IO"><HintPath>$(RhinoInstallDir)\Plug-ins\Grasshopper\GH_IO.dll</HintPath><Private>false</Private></Reference>
