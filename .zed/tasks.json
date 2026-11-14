@@ -1,0 +1,39 @@
+[
+  {
+    "label": "Gallery: bootstrap dependencies",
+    "command": "powershell.exe",
+    "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/bootstrap.ps1"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Gallery: build Debug",
+    "command": "powershell.exe",
+    "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/build.ps1", "-Configuration", "Debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "save": "all",
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Gallery: build Release and smoke check",
+    "command": "powershell.exe",
+    "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/build.ps1", "-Smoke"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "save": "all",
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Gallery: start Rhino with plugin",
+    "command": "powershell.exe",
+    "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/start-rhino.ps1"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Gallery: start Rhino and create sample",
+    "command": "powershell.exe",
+    "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/start-rhino.ps1", "-CreateSample"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "allow_concurrent_runs": false
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "label": "Gallery: Rhino 8 / .NET 10",
+    "adapter": "netcoredbg",
+    "request": "launch",
+    "build": "Gallery: build Debug",
+    "program": "C:\\Program Files\\Rhino 8\\System\\Rhino.exe",
+    "args": ["/netcore", "/nosplash", "/runscript=_Grasshopper"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "env": {
+      "RHINO_PACKAGE_DIRS": "$ZED_WORKTREE_ROOT/artifacts/SequentialGallery"
+    },
+    "stopAtEntry": false,
+    "justMyCode": true
+  }
+]

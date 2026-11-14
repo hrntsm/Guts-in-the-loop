@@ -1,0 +1,16 @@
+{
+  "languages": {
+    "CSharp": {
+      "tab_size": 4
+    }
+  },
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/bin",
+    "**/obj",
+    "build",
+    "tools",
+    "third_party",
+    "artifacts"
+  ]
+}
