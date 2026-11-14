@@ -1,6 +1,6 @@
 # Sequential Gallery for Grasshopper
 
-Compare Grasshopper-generated designs and explore them through user preferences. Terms follow `spec.md` version 2.0, including the decisions agreed during implementation.
+Compare Grasshopper-generated designs and explore them through user preferences. Terms follow `spec.md`, including decisions confirmed during implementation and rendering design discussions.
 
 ## Language
 
@@ -21,3 +21,33 @@ A stage of selecting a candidate and halving the search region around it on the 
 
 **Final candidate**:
 The last candidate selected by the user, whose applied slider values are restored when finishing normally.
+
+**AI rendering component**:
+A separate Grasshopper component for exploring the rendering atmosphere of a fixed reference image. It has its own setup and exploration session; integration with the geometry exploration workflow is a future goal.
+
+**Rendering reference image**:
+The single capture of the active Rhino viewport taken when the user starts an AI rendering session. It remains fixed throughout that session and is the reference for every generated matrix.
+
+**Rendering search session**:
+An independent SPS exploration over two through seven selected rendering variables, including the available Season variable, using 2x zoom and a plane update after four committed selections. Its gallery axes represent SPS coordinates and need not correspond to individual variables.
+
+**Rendering matrix**:
+A single AI-generated image containing the candidate cells for one rendering search step. It uses the session's gallery grid, defaulting to 5x5 with rows and columns independently chosen from 3, 5, 7, or 9 before Start.
+
+**Rendering selection**:
+The currently highlighted cell and its associated parameter vector in the displayed rendering matrix. Clicking changes this selection; Next commits it to SPS and advances exploration.
+
+**Out-of-range rendering cell**:
+A rendering matrix slot whose SPS vector contains a non-finite value or a variable outside its defined 0-1 semantic range. The slot stays in place, is covered by an `Out of range` overlay, and cannot be selected.
+
+**RenderingStyle**:
+The rendering variable ordered from pencil / line-art sketch (0), through watercolor (0.25), architectural illustration (0.5), and detailed CGI (0.75), to photorealistic imagery (1). Intermediate values describe weighted blends of neighboring styles while remaining continuous SPS coordinates.
+
+**Season**:
+The rendering variable ordered linearly from spring (0), through summer (1/3) and autumn (2/3), to winter (1), without wrapping winter to spring. Intermediate values represent seasonal transitions, with the fixed default 0.5 describing the transition from summer to autumn.
+
+**Final rendering preview**:
+The selected rendering cell cropped from its matrix and displayed after Finish, at the generated resolution. The user can save that crop as a PNG without generating a new image or upscaling it.
+
+**Pending rendering generation**:
+The fixed reference image, candidate conditions, grid mapping, prompt, and output settings awaiting a successful AI matrix response. Retry resends these conditions without adding another SPS selection or advancing the search again.

@@ -97,4 +97,4 @@ The Zed configuration files have been checked as JSON and the Debug build passes
 
 The configurable-grid setup was checked with the production WPF window and real SPS using a temporary fake viewport host: opening the window and changing grid dimensions did not start generation, Start processed 21 slots for a 3x7 grid, and settings were locked afterward. This check does not replace verifying the updated setup flow inside Rhino.
 
-See `spec.md` for requirements and `CONTEXT.md` for domain terms. SPS is pinned to `cfbf7955ad4b47bb3d3a6854d0b93f643bf20f61`. Dependency notices are listed in `THIRD_PARTY_NOTICES.md` and copied into the build output's `licenses/` directory.
+See `spec.md` for requirements and `CONTEXT.md` for domain terms. Section 17 of `spec.md` contains the agreed AI rendering exploration design and its differences from the current implementation; AI rendering is not implemented. SPS is pinned to `cfbf7955ad4b47bb3d3a6854d0b93f643bf20f61`. Dependency notices are listed in `THIRD_PARTY_NOTICES.md` and copied into the build output's `licenses/` directory.
