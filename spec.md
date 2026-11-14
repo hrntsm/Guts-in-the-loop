@@ -6,7 +6,7 @@
 
 **Scope:** Hackathon proof of concept
 
-**Document organization:** Sections 1-16 specify the existing geometry exploration workflow. Section 17 contains the agreed AI rendering requirements, consolidated from the supplied rendering specification and the design discussion. Section 17 is approved for implementation but is not implemented yet. Geometry grid settings, timing estimates, completion behavior, and exclusions in sections 1-16 do not automatically define the AI rendering workflow.
+**Document organization:** Sections 1-16 specify the geometry exploration workflow. Section 17 contains the AI rendering requirements, consolidated from the supplied rendering specification and the design discussion. Both workflows are implemented; verification scope is documented in their acceptance sections. Geometry grid settings, timing estimates, completion behavior, and exclusions in sections 1-16 do not automatically define the AI rendering workflow.
 
 **Grid configuration:** The gallery defaults to 5x5. Before starting, users choose rows and columns independently from 3, 5, 7, or 9. References below to 5x5 or 25 candidates describe the default; generation, progress, and selection use the configured candidate count. Rectangular grids use the authors' existing plane-coordinate API without changing the SPS dependency. Zoom remains 2x, with four selections per search plane.
 
@@ -507,7 +507,7 @@ https://developer.rhino3d.com/
 
 ## 17. AI rendering exploration
 
-Status: Design confirmed by the user. This section defines the next implementation's requirements, not verified product behavior. The geometry implementation remains unchanged; section 17.9 compares its existing behavior with the agreed rendering design.
+Status: Implemented as a separate AI Rendering component. Section 17.8 records the focused verification and its limits. Geometry exploration behavior is preserved; section 17.9 compares the two workflows.
 
 ### 17.1 Purpose and scope
 
@@ -662,32 +662,34 @@ Out of scope for rendering exploration: individual cell generation, user-defined
 
 ### 17.8 Acceptance criteria
 
-All rendering criteria remain unimplemented:
+The implementation covers the following criteria. Automated WPF checks use the real SPS engine and HTTP client with a repository-owned Postman stand-in; the live Rhino check exercises one actual generation, selection, Finish, and PNG encoding. Visual adherence to every prompt condition remains a manual assessment.
 
-- [ ] Select any combination of two through seven rendering variables through checkboxes, including Season.
-- [ ] Include watercolor-style conditions in the RenderingStyle mapping.
-- [ ] Keep unselected variables fixed at 0.5.
-- [ ] Default to a 5x5 rendering grid and support independent row and column choices of 3, 5, 7, or 9, fixed for each session.
-- [ ] Generate rows-times-columns candidate vectors for the selected variables.
-- [ ] Use the existing SPS implementation for every selection of two through seven variables, including 2x zoom and plane updates after four committed selections.
-- [ ] Obtain the configured candidate matrix in one image-generation response.
-- [ ] Use one 1024x1024 low-quality output image for the entire matrix in the initial end-to-end test preset.
-- [ ] Execute generation and display its response from the component without requiring a manual generation/export/import step in ChatGPT or Gemini.
-- [ ] Map a click to its row, column, and stored parameter vector.
-- [ ] Let clicks select and highlight without generating images or changing SPS; commit a valid selection and advance only on Next.
-- [ ] Keep out-of-range cells in their original slots, request blank placeholders, and mask them with non-selectable WPF overlays without clamping coordinates or inventing extrapolated prompt meanings.
-- [ ] Zoom around the selected candidate.
-- [ ] Update SPS planes through committed preferences.
-- [ ] Continue across repeated generations.
-- [ ] Crop and preview the final selected rendering and optionally save that crop as a PNG at a user-selected path, without regenerating or upscaling it.
-- [ ] Preserve the last successful matrix on API failure and manually retry the same pending candidate conditions without committing a selection twice or automatically retrying.
-- [ ] Divide matrices uniformly by the configured grid and allow manual Regenerate with unchanged conditions when the visual layout is unsuitable, without image recognition or another SPS selection.
-- [ ] Cancel generation without closing the session, retain the last successful image and pending conditions for Retry, and ignore late responses from cancelled requests.
-- [ ] Keep the facade reference fixed and leave Number Sliders unchanged during rendering exploration.
-- [ ] Capture the active Rhino viewport once on Start and reuse that image for every matrix request in the session.
-- [ ] Open rendering setup and exploration from a separate Grasshopper component, preserving the geometry component's existing finish behavior.
+- [x] Select any combination of two through seven rendering variables through checkboxes, including Season.
+- [x] Include watercolor-style conditions in the RenderingStyle mapping.
+- [x] Keep unselected variables fixed at 0.5.
+- [x] Default to a 5x5 rendering grid and support independent row and column choices of 3, 5, 7, or 9, fixed for each session.
+- [x] Generate rows-times-columns candidate vectors for the selected variables.
+- [x] Use the existing SPS implementation for every selection of two through seven variables, including 2x zoom and plane updates after four committed selections.
+- [x] Obtain the configured candidate matrix in one image-generation response.
+- [x] Use one 1024x1024 low-quality output image for the entire matrix in the initial end-to-end test preset.
+- [x] Execute generation and display its response from the component without requiring a manual generation/export/import step in ChatGPT or Gemini.
+- [x] Map a click to its row, column, and stored parameter vector.
+- [x] Let clicks select and highlight without generating images or changing SPS; commit a valid selection and advance only on Next.
+- [x] Keep out-of-range cells in their original slots, request blank placeholders, and mask them with non-selectable WPF overlays without clamping coordinates or inventing extrapolated prompt meanings.
+- [x] Zoom around the selected candidate.
+- [x] Update SPS planes through committed preferences.
+- [x] Continue across repeated generations.
+- [x] Crop and preview the final selected rendering and optionally save that crop as a PNG at a user-selected path, without regenerating or upscaling it.
+- [x] Preserve the last successful matrix on API failure and manually retry the same pending candidate conditions without committing a selection twice or automatically retrying.
+- [x] Divide matrices uniformly by the configured grid and allow manual Regenerate with unchanged conditions when the visual layout is unsuitable, without image recognition or another SPS selection.
+- [x] Cancel generation without closing the session, retain the last successful image and pending conditions for Retry, and ignore late responses from cancelled requests.
+- [x] Keep the facade reference fixed and leave Number Sliders unchanged during rendering exploration.
+- [x] Capture the active Rhino viewport once on Start and reuse that image for every matrix request in the session.
+- [x] Open rendering setup and exploration from a separate Grasshopper component, preserving the geometry component's existing finish behavior.
 
 Success means users can choose rendering variables and interactively explore their visual atmosphere by selecting cells in AI-generated matrices.
+
+Verification record: the production WPF smoke check exercised ten local HTTP calls, including 429, HTML 502, delayed responses, manual Retry, Regenerate, cancellation, four-selection plane learning, crop bounds, and PNG round-trip. Supported grid sizes were checked with seven variables, and a two-variable rectangular session confirmed unselected values stay at 0.5. A live component-driven Rhino run returned a 1024x1024 5x5 matrix in approximately 9.5 seconds, selected its center, finished to a 205x205 crop, and encoded that crop as PNG while preserving slider state. The native Save dialog is provided by WPF; automated verification exercises PNG writing without driving that dialog.
 
 ### 17.9 Comparison with the current implementation
 

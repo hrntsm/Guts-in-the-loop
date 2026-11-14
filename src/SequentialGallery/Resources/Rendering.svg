@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <title>AI Rendering</title>
+  <defs>
+    <g id="row">
+      <rect x="2" width="3" height="3" rx="0.6"/>
+      <rect x="6" width="3" height="3" rx="0.6"/>
+      <rect x="10" width="3" height="3" rx="0.6"/>
+      <rect x="14" width="3" height="3" rx="0.6"/>
+      <rect x="18" width="3" height="3" rx="0.6"/>
+    </g>
+  </defs>
+  <g fill="#343b8f">
+    <use href="#row" y="2"/><use href="#row" y="6"/>
+    <use href="#row" y="10"/><use href="#row" y="14"/><use href="#row" y="18"/>
+  </g>
+  <path d="M16 2 L18 7 L23 9 L18 11 L16 16 L14 11 L9 9 L14 7 Z" fill="#f2a33a" stroke="white" stroke-width="0.8"/>
+</svg>

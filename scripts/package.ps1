@@ -21,6 +21,13 @@ Sequential Gallery — Windows x64 / Rhino 8.36+ / .NET 10
 5. Select preferred images. Four selections advance to the next plane.
 6. Finish with selected design restores the last selected shape.
 
+For AI rendering, set OPENAI_API_KEY before starting Rhino. Add Params > Util >
+AI Rendering, double-click it, select variables and grid size, then Start.
+Select a cell and press Next to explore. Finish previews the selected crop;
+Save PNG saves it without additional generation or upscaling. API usage applies.
+Retry repeats failed conditions; Regenerate replaces the same matrix conditions.
+Cancel stops waiting locally and does not guarantee remote cancellation.
+
 Slider precision/type is preserved. Existing Fillet Edge errors in the
 provided sample are intentionally left unchanged. The sample uses the
 Fillet Edge component already installed on the development machine.

@@ -46,6 +46,20 @@ SPS uses continuous coordinates internally. Values are rounded only when applied
 
 Keep the original Rhino and Grasshopper documents active during generation, and do not edit the slider ranges, connections, or definition. The camera, display mode, and capture resolution use the settings recorded at startup. Relay-based variable connections and session persistence are not supported. Existing component errors do not stop exploration when the document solution completes; the gallery captures the geometry visible in the viewport.
 
+## AI rendering
+
+Add **Params > Util > AI Rendering** as a separate component. It has no slider inputs and does not change geometry. Set `OPENAI_API_KEY` in the Windows user environment before launching Rhino. `scripts/start-rhino.ps1` refreshes the registered user key for its new Rhino process without printing it. If launching from Zed or another application that was already open, restart that application after changing the environment variable. Keys are never saved in Grasshopper definitions or repository files.
+
+1. Double-click **AI Rendering** to open setup. No image request or capture runs yet.
+2. Select at least two of the seven atmosphere variables, including Season and RenderingStyle with watercolor. Unchecked variables stay at 0.5.
+3. Choose rows and columns from 3, 5, 7, or 9 (default: 5x5), frame the active Rhino viewport, and press **Start rendering exploration**.
+4. The component captures that viewport once and sends one OpenAI image-edit request for the entire matrix, using `gpt-image-2.6-flare`, `1024x1024`, and `low` quality. Every subsequent request uses the original capture.
+5. Click a valid cell to highlight it. **Next** commits that preference and generates another matrix. Four committed selections update the SPS plane. A new image clears the highlighted selection.
+6. **Regenerate** requests another image of the same conditions without advancing SPS. Use it when the generated layout does not match the equal-cell overlay. Out-of-range cells remain covered and cannot be selected.
+7. **Finish** crops the highlighted cell into a final preview. **Save PNG** saves only that original crop at a chosen path; it does not generate a new image or upscale it. A 5x5 matrix gives approximately 205x205 pixels per crop.
+
+Failed requests keep the previous image and offer **Retry**, reusing the pending conditions without another SPS selection. **Cancel generation** stops local waiting and ignores late responses, preserving conditions for Retry. It does not guarantee remote cancellation or a refund of API usage. **Close** ends the session. Requests time out after five minutes; retries and regenerations are always manual. The window displays elapsed request time rather than estimating AI latency from Grasshopper computation.
+
 ## Supplied sample
 
 ```powershell
@@ -68,7 +82,7 @@ Build and launch tasks are also available independently. Close Rhino before repl
 
 Variables wires use a maroon tint (`#9B1B30`), with stronger color when the gallery or a connected slider is selected. Faint and hidden wire settings remain supported. The component and plugin share a 24x24 transparent icon showing the 5x5 gallery and a selected center candidate.
 
-The editable source is `src/SequentialGallery/Resources/Gallery.svg`; its generated `Gallery.png` is embedded in the plugin. To regenerate it, install Node.js and run:
+Editable icon sources are `src/SequentialGallery/Resources/Gallery.svg` and `Rendering.svg`; their generated PNGs are embedded in the plugin. To regenerate both, install Node.js and run:
 
 ```powershell
 ./scripts/bootstrap.ps1 -IconTools
@@ -97,4 +111,18 @@ The Zed configuration files have been checked as JSON and the Debug build passes
 
 The configurable-grid setup was checked with the production WPF window and real SPS using a temporary fake viewport host: opening the window and changing grid dimensions did not start generation, Start processed 21 slots for a 3x7 grid, and settings were locked afterward. This check does not replace verifying the updated setup flow inside Rhino.
 
-See `spec.md` for requirements and `CONTEXT.md` for domain terms. Section 17 of `spec.md` contains the agreed AI rendering exploration design and its differences from the current implementation; AI rendering is not implemented. SPS is pinned to `cfbf7955ad4b47bb3d3a6854d0b93f643bf20f61`. Dependency notices are listed in `THIRD_PARTY_NOTICES.md` and copied into the build output's `licenses/` directory.
+The rendering smoke check uses the production WPF window, SPS engine, and HTTP client against a repository-owned Postman stand-in. Start it in a separate terminal, then run the check:
+
+```powershell
+postman simulation run postman/simulations/rendering.sim.yaml --port 4900 --no-history --output ndjson
+# In another terminal:
+./scripts/test-rendering.ps1
+```
+
+Postman CLI 1.75.0 was used; local runs need no Postman account. The fixture follows the official image-edit JSON contract and validates request fields; its control routes inject 429, non-JSON 502, and delayed responses. The check verifies pending-condition reuse, cancellation, rejection of late responses, Regenerate, four-selection learning, fixed reference reuse, crop boundaries, and PNG round-trip. Its synthetic images do not establish AI layout quality. Runtime images and logs stay under ignored build output. Provenance and evidence are in `postman/simulations/rendering.context.yaml`.
+
+For one real image-edit call using an existing reference PNG, run `./scripts/test-rendering.ps1 -LiveReferencePath 'path/to/reference.png'`. This uses the configured API account and consumes API usage. It validates the real response through the production gallery, crop, and PNG code; it does not replace testing viewport capture inside Rhino.
+
+The AI Rendering component was also tested inside Rhino with the supplied sample. One live OpenAI request produced a 1024x1024 5x5 matrix in approximately 9.5 seconds, followed by center selection, Finish, and 205x205 PNG encoding. Slider values, bounds, types, and precision remained unchanged. This verifies the live capture-to-gallery-to-crop path; exact AI adherence to every atmosphere condition is not automatically assessed.
+
+See `spec.md` for requirements and `CONTEXT.md` for domain terms, including AI rendering. SPS is pinned to `cfbf7955ad4b47bb3d3a6854d0b93f643bf20f61`. Dependency notices are listed in `THIRD_PARTY_NOTICES.md` and copied into the build output's `licenses/` directory.

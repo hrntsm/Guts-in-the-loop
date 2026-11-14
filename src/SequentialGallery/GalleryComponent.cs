@@ -13,12 +13,13 @@ namespace SequentialGallery;
 
 public sealed class GalleryComponent : GH_Component
 {
-    private static readonly Lazy<Bitmap> sharedIcon = new(() => {
-        using var stream = typeof(GalleryComponent).Assembly.GetManifestResourceStream("SequentialGallery.Gallery.png")
+    private static readonly Lazy<Bitmap> sharedIcon = new(() => LoadIcon("Gallery"));
+    internal static Bitmap LoadIcon(string name) {
+        using var stream = typeof(GalleryComponent).Assembly.GetManifestResourceStream($"SequentialGallery.{name}.png")
             ?? throw new InvalidOperationException("The gallery icon resource is missing.");
         using var image = new Bitmap(stream);
         return new Bitmap(image);
-    });
+    }
     internal static Bitmap SharedIcon => sharedIcon.Value;
     protected override Bitmap Icon => SharedIcon;
     private GalleryWindow? window;

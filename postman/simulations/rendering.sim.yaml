@@ -1,0 +1,8 @@
+simulation: rendering
+routing: path
+mocks:
+  - name: OpenAI image edits
+    routeKey: openai
+    origin:
+      - api.openai.com
+    path: postman/mocks/openai-images/config.yaml

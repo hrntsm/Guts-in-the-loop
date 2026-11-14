@@ -1,0 +1,44 @@
+purpose:
+  stands_in_for: OpenAI Images API image editing, returning one encoded PNG.
+  unblocks: WPF rendering flow, request contract, retries, cancellation, and crop checks without paid image requests.
+assumptions:
+  - id: image-edit-json-contract
+    status: supported
+    claim: The image edit endpoint accepts an image data URL and returns a data array containing one b64_json PNG when n is one.
+    reason: The request and response fields are documented by the provider; model access and actual generation require separate live checks.
+    verification: Production RenderingApi sent ten valid JSON image-edit requests through Postman simulation on 2026-11-14; fixture validation accepted every request. A separate live Rhino run sent one real request with a viewport capture and received one 1024x1024 matrix, then cropped and PNG-encoded its selected 205x205 cell. Exact condition adherence is not automatically assessed.
+    source: https://developers.openai.com/api/reference/resources/images/methods/edit
+    updated_at: '2026-11-14'
+  - id: live-image-edit-path
+    status: supported
+    claim: The configured image model accepted one fixed Rhino viewport reference and produced a matrix that the production component displayed and cropped.
+    reason: A component-driven live run exercised the actual capture and API client, not a substituted renderer or a separately generated image.
+    verification: On 2026-11-14, AI Rendering in Rhino produced a 1024x1024 5x5 matrix in approximately 9.5 seconds and a 205x205 selected crop. Slider values, bounds, types, and precision were unchanged. This single live run does not establish layout reliability across models or repeated generations.
+    source: RenderingComponent.cs; RenderingHost.cs; RenderingApi.cs; ignored build/evidence/rhino-rendering.txt
+    updated_at: '2026-11-14'
+  - id: pending-request-reuse
+    status: supported
+    claim: In the scenarios exercised, manual retries reused pending candidate conditions without adding another SPS selection, while cancellation preserved the displayed image and rejected late replacement.
+    reason: The production WPF window and SPS session ran against real HTTP stand-ins, with state assertions before and after failed and cancelled requests.
+    verification: RenderingSmoke passed 429, HTML 502, manual Retry, Regenerate, delayed response cancellation, subsequent Retry, four-selection plane update, and final crop/PNG round-trip on 2026-11-14. Postman request events confirmed the dependency path ran.
+    source: smoke/RenderingSmoke/Program.cs; postman/mocks/openai-images/default.js
+    updated_at: '2026-11-14'
+  - id: local-fixture-provenance
+    status: supported
+    claim: This fixture is repository-owned and models only the calls made by RenderingApi, plus local control routes.
+    reason: The CLI is signed out, so an owner-published mock search was skipped; no remote mock was imported.
+    verification: Postman CLI 1.75.0 whoami reports no account. Simulation has not been published or deployed.
+    source: postman/mocks/openai-images/default.js
+    updated_at: '2026-11-14'
+  - id: remote-cancel-does-not-imply-refund
+    status: unknown
+    claim: Cancelling local waiting does not establish whether remote generation completed or API usage was charged.
+    reason: A local stand-in cannot establish remote execution or billing after a client disconnect.
+    verification: No provider billing or remote cancellation guarantee assumed.
+    source: spec.md section 17.6
+    updated_at: '2026-11-14'
+fingerprints:
+  - id: initial-rendering
+    date: '2026-11-14'
+    commit: 8380c01
+    cli: 1.75.0

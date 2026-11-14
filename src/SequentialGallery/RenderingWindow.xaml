@@ -1,0 +1,69 @@
+<Window x:Class="SequentialGallery.RenderingWindow" x:ClassModifier="internal"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="AI Rendering" Width="1100" Height="850" MinWidth="680" MinHeight="580"
+ Background="#151A21" Foreground="#F3F5F7" WindowStartupLocation="CenterScreen">
+ <Window.Resources>
+  <Style TargetType="Button">
+   <Setter Property="Background" Value="#283341"/><Setter Property="Foreground" Value="White"/>
+   <Setter Property="Padding" Value="14,8"/><Setter Property="Margin" Value="4"/>
+  </Style>
+  <Style x:Key="CellStyle" TargetType="Button">
+   <Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="White"/>
+   <Setter Property="BorderBrush" Value="#AAFFFFFF"/><Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="FontSize" Value="20"/><Setter Property="Padding" Value="0"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    </Border>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+ </Window.Resources>
+ <DockPanel Margin="16">
+  <StackPanel DockPanel.Dock="Top" Margin="4,0,4,12">
+   <TextBlock Text="AI RENDERING" FontSize="23" FontWeight="SemiBold"/>
+   <TextBlock x:Name="StageLabel" Text="Setup" Margin="0,8,0,0"/>
+   <TextBlock x:Name="VariableSummary" Visibility="Collapsed" TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,5,0,0"/>
+  </StackPanel>
+  <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+   <ProgressBar x:Name="BusyProgress" Visibility="Collapsed" IsIndeterminate="True" Height="5"/>
+   <TextBlock x:Name="Status" Text="Choose at least two variables. Frame your viewport before Start." Margin="4,8" TextWrapping="Wrap"/>
+   <WrapPanel>
+    <Button Content="Close" Click="CloseClick"/>
+    <Button x:Name="CancelButton" Content="Cancel generation" Click="CancelClick" Visibility="Collapsed"/>
+    <Button x:Name="RetryButton" Content="Retry" Click="RetryClick" Visibility="Collapsed"/>
+    <Button x:Name="RegenerateButton" Content="Regenerate" Click="RegenerateClick" Visibility="Collapsed"/>
+    <Button x:Name="NextButton" Content="Next" Click="NextClick" Visibility="Collapsed"/>
+    <Button x:Name="FinishButton" Content="Finish" Click="FinishClick" Visibility="Collapsed"/>
+    <Button x:Name="SaveButton" Content="Save PNG" Click="SaveClick" Visibility="Collapsed"/>
+   </WrapPanel>
+  </StackPanel>
+  <Grid>
+   <StackPanel x:Name="SetupPanel" MaxWidth="760" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16">
+    <TextBlock Text="Rendering atmosphere" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
+    <TextBlock Text="Checked variables are explored; unchecked variables stay at 0.5." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,0,0,12"/>
+    <StackPanel x:Name="VariableOptions"/>
+    <WrapPanel Margin="0,16,0,8">
+     <TextBlock Text="Rows" VerticalAlignment="Center" Margin="0,0,8,0"/>
+     <ComboBox x:Name="RowsChoice" Width="65" SelectedIndex="1" SelectionChanged="SetupChanged">
+      <ComboBoxItem Content="3"/><ComboBoxItem Content="5"/><ComboBoxItem Content="7"/><ComboBoxItem Content="9"/>
+     </ComboBox>
+     <TextBlock Text="Columns" VerticalAlignment="Center" Margin="16,0,8,0"/>
+     <ComboBox x:Name="ColumnsChoice" Width="65" SelectedIndex="1" SelectionChanged="SetupChanged">
+      <ComboBoxItem Content="3"/><ComboBoxItem Content="5"/><ComboBoxItem Content="7"/><ComboBoxItem Content="9"/>
+     </ComboBox>
+     <TextBlock x:Name="GridSummary" VerticalAlignment="Center" Margin="16,0"/>
+    </WrapPanel>
+    <TextBlock Text="Start captures the active Rhino viewport once. The reference stays fixed; sliders are never changed. One API request creates the complete matrix at 1024×1024, low quality." TextWrapping="Wrap" Foreground="#AAB8C8"/>
+    <Button x:Name="StartButton" Content="Start rendering exploration" Click="StartClick" HorizontalAlignment="Left" Margin="0,16,0,0"/>
+   </StackPanel>
+   <Viewbox x:Name="MatrixView" Visibility="Collapsed" Stretch="Uniform">
+    <Grid Width="1024" Height="1024" Background="#222B36">
+     <Image x:Name="MatrixImage" Stretch="Fill"/>
+     <UniformGrid x:Name="CellOverlay"/>
+    </Grid>
+   </Viewbox>
+   <Image x:Name="FinalImage" Visibility="Collapsed" Stretch="Uniform"/>
+  </Grid>
+ </DockPanel>
+</Window>
