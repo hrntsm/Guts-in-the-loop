@@ -41,7 +41,7 @@ A stage of selecting a candidate and halving the search region around it on the 
 The continuous rectangle in the author's two-dimensional plane coordinates used to generate a gallery. Keep a requested zoom unchanged when its entire rectangle maps into 0-1 for every variable. Otherwise translate it into the previous certified window while preserving its width and the selected point; shrink only if needed for an unusable fresh plane or numerical fallback. Store the corrected window with optimizer snapshots so display, selection, learning, and History agree. Individual variable coordinates are never clamped.
 
 **Final candidate**:
-The candidate selected for geometry-only completion, or the source geometry of the selected AI result in combined completion. Its recorded applied slider values are restored when finishing.
+The candidate selected for geometry-only completion, or the geometry choice explicitly selected in History for a combined final render. It may differ from the original geometry used to explore the selected rendering conditions. Its recorded applied slider values are restored when finishing.
 
 **AI rendering component**:
 The legacy AI-only entry point retained for existing Grasshopper definitions. New definitions use the integrated Sequential Gallery component, which provides AI-only behavior when no design variables are connected.

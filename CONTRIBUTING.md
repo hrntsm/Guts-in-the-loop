@@ -1,6 +1,8 @@
 # Contributing
 
-Run commands from the repository root. See [AGENTS.md](AGENTS.md) for repository conventions, [spec.md](spec.md) for behavior, and [CONTEXT.md](CONTEXT.md) for terminology.
+Run commands from the repository root. See [AGENTS.md](AGENTS.md) for repository conventions, [spec.md](docs/spec.md) for behavior, and [CONTEXT.md](docs/CONTEXT.md) for terminology.
+
+Source is under `src/`, checks and HTTP fixtures under `tests/`, design documents and decisions under `docs/`, and sample definitions under `samples/`. Downloaded tools and dependencies live in ignored `.cache/`; rebuildable output goes to `build/` and packages to `artifacts/`.
 
 ## Requirements
 
@@ -15,7 +17,7 @@ Use Windows x64, Rhino 8.36 or later, the .NET 10 SDK, Git, and Visual Studio wi
 
 Bootstrap fetches pinned dependencies and CMake into ignored directories. The build produces `artifacts/SequentialGallery/`; keep `SequentialGallery.gha`, `SequentialGallery.Native.dll`, and `licenses/` together. Use `-Configuration Debug` for a Debug build or `-RhinoInstallDir 'D:/Rhino 8'` for another Rhino installation. Close Rhino before replacing loaded binaries.
 
-Downloaded dependencies, build output, and distribution packages stay out of Git. SPS uses the [state-copy fork](https://github.com/hrntsm/sequential-gallery); its pinned revision is maintained in [scripts/bootstrap.ps1](scripts/bootstrap.ps1). Dependency notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Downloaded dependencies, build output, and distribution packages stay out of Git. SPS uses the [state-copy fork](https://github.com/hrntsm/sequential-gallery); its pinned revision is maintained in [scripts/bootstrap.ps1](scripts/bootstrap.ps1). Dependency notices are in [THIRD_PARTY_NOTICES.md](docs/THIRD_PARTY_NOTICES.md).
 
 ## Run and configure
 
@@ -48,22 +50,22 @@ For debugging, install Zed's C# and [NetCoreDbg](https://github.com/qwadrox/zed-
 Run the geometry pane checks with a fake viewport host:
 
 ```powershell
-dotnet build smoke/GeometrySmoke/GeometrySmoke.csproj -c Release
-dotnet smoke/GeometrySmoke/bin/Release/net10.0-windows/GeometrySmoke.dll
+dotnet build tests/GeometrySmoke/GeometrySmoke.csproj -c Release
+dotnet tests/GeometrySmoke/bin/Release/net10.0-windows/GeometrySmoke.dll
 ```
 
 For image viewing and close-confirmation checks without HTTP:
 
 ```powershell
-dotnet build smoke/IntegratedSmoke/IntegratedSmoke.csproj -c Release
-dotnet smoke/IntegratedSmoke/bin/Release/net10.0-windows/IntegratedSmoke.dll --view-only
-dotnet smoke/IntegratedSmoke/bin/Release/net10.0-windows/IntegratedSmoke.dll --close-only
+dotnet build tests/IntegratedSmoke/IntegratedSmoke.csproj -c Release
+dotnet tests/IntegratedSmoke/bin/Release/net10.0-windows/IntegratedSmoke.dll --view-only
+dotnet tests/IntegratedSmoke/bin/Release/net10.0-windows/IntegratedSmoke.dll --close-only
 ```
 
 For rendering and full integration checks, start the local Postman stand-in in one terminal:
 
 ```powershell
-postman simulation run postman/simulations/rendering.sim.yaml --port 4900 --no-history --output ndjson
+postman simulation run tests/postman/simulations/rendering.sim.yaml --port 4900 --no-history --output ndjson
 ```
 
 In another terminal, run these sequentially because they share the fixture's failure controls:
@@ -73,7 +75,7 @@ In another terminal, run these sequentially because they share the fixture's fai
 ./scripts/test-integrated.ps1
 ```
 
-The local stand-in requires no API key or Postman login; it was validated with Postman CLI 1.75.0. Tests write evidence and result bundles under ignored `build/evidence/`. They cover retries, cancellation, history, source provenance, standalone rendering, and export failures. Synthetic outputs do not establish AI fidelity. Offscreen WPF tests do not establish physical mouse capture inside Rhino. See [simulation evidence](postman/simulations/rendering.context.yaml) and [spec.md](spec.md) for validation records.
+The local stand-in requires no API key or Postman login; it was validated with Postman CLI 1.75.0. Tests write evidence and result bundles under ignored `build/evidence/`; earlier local evidence is retained in `.cache/validation-archive/`. They cover retries, cancellation, history, source provenance, standalone rendering, and export failures. Synthetic outputs do not establish AI fidelity. Offscreen WPF tests do not establish physical mouse capture inside Rhino. See [simulation evidence](tests/postman/simulations/rendering.context.yaml) and [spec.md](docs/spec.md) for validation records.
 
 To make a paid live request with an existing reference PNG, use `./scripts/test-rendering.ps1 -LiveReferencePath 'path/to/reference.png'` with the registered API key.
 
@@ -87,8 +89,6 @@ Run **Gallery: build Yak package** in Zed or:
 
 This performs a fresh Release build and uses Rhino's `Yak.exe` to create a Windows package under `artifacts/yak/`. Pass `-RhinoInstallDir` for another installation. Update the version in [packaging/manifest.yml](packaging/manifest.yml) for a release. The package includes the plugin, native DLL, icon, and licenses; no prepared sample is required. This command does not publish or install the package. See the [official Grasshopper package guide](https://developer.rhino3d.com/guides/yak/creating-a-grasshopper-plugin-package/).
 
-For the existing ZIP distribution, build and prepare `samples/Facade.ghx` first, then run `./scripts/package.ps1`. The output is `artifacts/SequentialGallery-PoC.zip`. Its legacy `INSTALL.txt` still describes the earlier crop-only Finish workflow; use [spec.md](spec.md) for current final-render behavior.
-
 ## Editable assets
 
 The English prompt catalog is [src/SequentialGallery/Prompts/rendering.json](src/SequentialGallery/Prompts/rendering.json). It is embedded at build time; rebuild and restart Rhino after editing it. Preserve variable order, keys, and the correspondence between anchor labels and descriptions.
@@ -100,4 +100,4 @@ Component icons use SVG sources and generated PNGs under `src/SequentialGallery/
 node scripts/render-icon.cjs
 ```
 
-Keep both SVG and PNG assets in Git. The renderer is downloaded into ignored `tools/` and is not a runtime dependency.
+Keep both SVG and PNG assets in Git. The renderer is downloaded into ignored `.cache/tools/` and is not a runtime dependency.

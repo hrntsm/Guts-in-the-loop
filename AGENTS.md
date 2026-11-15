@@ -5,4 +5,4 @@
 - Preserve each Number Slider's numeric type and precision. SPS coordinates remain continuous; round values only when applying them to sliders.
 - Preserve the supplied sample's Fillet Edge wiring and existing errors. A completed Grasshopper solution may still be captured when individual components report errors.
 - Keep downloaded dependencies, build output, and distributable packages out of Git. Fetch pinned dependencies with `scripts/bootstrap.ps1`.
-- See `CONTRIBUTING.md` for build and validation commands, `spec.md` for requirements, and `CONTEXT.md` for domain terminology.
+- See `CONTRIBUTING.md` for build and validation commands, `docs/spec.md` for requirements, and `docs/CONTEXT.md` for domain terminology.

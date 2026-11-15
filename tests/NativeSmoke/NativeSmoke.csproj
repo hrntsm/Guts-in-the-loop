@@ -5,5 +5,5 @@
   <Nullable>enable</Nullable>
   <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
  </PropertyGroup>
- <ItemGroup><Compile Include="Program.cs"/><Compile Include="../src/SequentialGallery/SpsEngine.cs" Link="SpsEngine.cs"/></ItemGroup>
+ <ItemGroup><Compile Include="Program.cs"/><Compile Include="../../src/SequentialGallery/SpsEngine.cs" Link="SpsEngine.cs"/></ItemGroup>
 </Project>

@@ -1,7 +1,6 @@
 /artifacts/
 /build/
-/tools/
-/third_party/
+/.cache/
 **/bin/
 **/obj/
 .vs/

@@ -14,98 +14,98 @@ assumptions:
     claim: The configured image model accepted one fixed Rhino viewport reference and produced a matrix that the production component displayed and cropped.
     reason: A component-driven live run exercised the actual capture and API client, not a substituted renderer or a separately generated image.
     verification: On 2026-11-14, AI Rendering in Rhino produced a 1024x1024 5x5 matrix in approximately 9.5 seconds and a 205x205 selected crop. Slider values, bounds, types, and precision were unchanged. This single live run does not establish layout reliability across models or repeated generations.
-    source: RenderingComponent.cs; RenderingHost.cs; RenderingApi.cs; ignored build/evidence/rhino-rendering.txt
+    source: RenderingComponent.cs; RenderingHost.cs; RenderingApi.cs; ignored .cache/validation-archive/rhino-rendering.txt
     updated_at: '2026-11-14'
   - id: pending-request-reuse
     status: supported
     claim: In the scenarios exercised, manual retries reused pending candidate conditions without adding another SPS selection, while cancellation preserved the displayed image and rejected late replacement.
     reason: The production WPF window and SPS session ran against real HTTP stand-ins, with state assertions before and after failed and cancelled requests.
     verification: Earlier RenderingSmoke runs passed 429, HTML 502, manual Retry, Regenerate, delayed response cancellation, subsequent Retry, four-selection plane update, and crop/PNG round-trip on 2026-11-14. The branching-history revision passed twelve local HTTP calls in both the implementation run and independent review, including cancellation of pending work followed by history restoration. Postman request events confirmed the dependency path ran. The fixture does not establish remote cancellation or billing outcomes.
-    source: smoke/RenderingSmoke/Program.cs; postman/mocks/openai-images/default.js
+    source: tests/RenderingSmoke/Program.cs; tests/postman/mocks/openai-images/default.js
     updated_at: '2026-11-14'
   - id: local-fixture-provenance
     status: supported
     claim: This fixture is repository-owned and models only the calls made by RenderingApi, plus local control routes.
     reason: The CLI is signed out, so an owner-published mock search was skipped; no remote mock was imported.
-    verification: Postman CLI 1.75.0 whoami reports no account. Simulation has not been published or deployed.
-    source: postman/mocks/openai-images/default.js
+    verification: Postman CLI 1.75.0 whoami reports no account. Simulation has not been published or deployed. After repository cleanup, the relocated tests/postman fixture passed all 27 RenderingSmoke and IntegratedSmoke image requests on 2026-11-15.
+    source: tests/postman/mocks/openai-images/default.js
     updated_at: '2026-11-14'
   - id: remote-cancel-does-not-imply-refund
     status: unknown
     claim: Cancelling local waiting does not establish whether remote generation completed or API usage was charged.
     reason: A local stand-in cannot establish remote execution or billing after a client disconnect.
     verification: No provider billing or remote cancellation guarantee assumed.
-    source: spec.md section 17.6
+    source: docs/spec.md section 17.6
     updated_at: '2026-11-14'
   - id: fixed-scene-instructions
     status: supported
     claim: In the exercised caller flow, Initial and Negative prompts captured on Start were included unchanged as separate sections in every subsequent matrix request and remained outside the SPS coordinates.
     reason: The production WPF smoke test edited both setup fields, started a session, changed both hidden textboxes programmatically, and checked all ten actual HTTP prompts.
     verification: The separate-prompts run on dirty 95a83a7 retained both captured texts through Next, Retry, Regenerate, and cancellation/retry. Inspector fields and final preview retained the captured texts. Both fields accepted empty strings without restoring defaults, and Negative prompt applied with an empty Initial prompt. Grids up to 9x9 with six variables and 2000 characters in each field remained under the API prompt limit. Earlier runs covered seven variables and then the six-variable catalog with a single 2000-character Initial prompt. This proves request construction, not AI obedience to scene constraints.
-    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingSession.cs
+    source: tests/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingSession.cs
     updated_at: '2026-11-14'
   - id: displayed-prompt-inspector
     status: supported
     claim: In the exercised WPF flow, Show Prompt displayed the captured instructions and exact stored values for the displayed matrix without making another image request.
     reason: The smoke check compared every value-box detail and the full prompt with the displayed batch, synchronized image/value-box selection, and counted real HTTP calls before and after toggling. The value grid mirrors the image layout, with six values grouped inside each box after removing color temperature.
     verification: Earlier ten-call flows passed, including separate Initial and Negative displays on dirty 95a83a7; the old final preview retained both texts. In the current branching-history run, failed Next retained the old request, successful Retry updated it, and restoring a history node restored its exact prompt and values without an API call. Finish now exports and closes instead of retaining a final preview. This verifies caller data correspondence, not generated-image interpretation.
-    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingPane.xaml.cs
+    source: tests/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingPane.xaml.cs
     updated_at: '2026-11-14'
   - id: detailed-prompt-catalog
     status: supported
     claim: In the local prompt-catalog run, requests defined the six variables' detailed anchors once, used compact weighted references, and assigned season-dependent precipitation to wet-weather cells.
     reason: The production session and embedded JSON catalog ran through the WPF HTTP flow; assertions checked each anchor definition, the exact variable list, precipitation boundaries and mixed rain/snow, and per-cell precipitation on supported grids.
     verification: RenderingSmoke passed the ten-call Postman flow on the dirty d1dd8cb prompt-catalog tree. Clear winter inspector details did not request precipitation; heavy winter details resolved to snow; the autumn-to-winter midpoint resolved to equal rain and snow. This does not establish that the real image model follows these descriptions or distinguishes the styles visually; no paid generation was made for this revision.
-    source: src/SequentialGallery/Prompts/rendering.json; src/SequentialGallery/RenderingSession.cs; smoke/RenderingSmoke/Program.cs
+    source: src/SequentialGallery/Prompts/rendering.json; src/SequentialGallery/RenderingSession.cs; tests/RenderingSmoke/Program.cs
     updated_at: '2026-11-14'
   - id: chosen-fixed-values
     status: supported
     claim: In the local fixed-value-selector run, unselected variables retained their chosen catalog anchors in every candidate and actual HTTP prompt throughout the exercised exploration flow.
     reason: The production WPF flow explored two variables with four selected fixed conditions; direct session checks covered all 29 fixed anchors and cloned input values, while the inspector checks compared stored values to displayed details.
     verification: On dirty 2540e82, RenderingSmoke passed the ten-call Postman flow with heavy precipitation, empty activity, rich planting, and winter fixed. The UI enabled dropdowns only for unchecked variables, locked them on Start, and ignored a programmatic change to the hidden season selector after Start. Requests retained W4, A0, V3, and S3 through Retry, Regenerate, cancellation, zoom, and a learned plane update. This establishes caller state and prompt construction, not visual adherence by the real image provider.
-    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingSession.cs; src/SequentialGallery/RenderingPane.xaml.cs
+    source: tests/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingSession.cs; src/SequentialGallery/RenderingPane.xaml.cs
     updated_at: '2026-11-14'
   - id: branching-history-and-result-export
     status: supported
     claim: In the exercised WPF flow, restoring history reused saved images and branch-local optimizer state, and Finish exported the selected crop with its exact prompt, reference, and conditions before closing.
     reason: Production window/session code ran with real SPS state copies and real HTTP against the stand-in. Assertions inspected node counts, candidate vectors, request counts, exported bytes and JSON, and disposal after success.
     verification: Twelve local HTTP calls passed on dirty 3f59965 in implementation and independent-review runs. Checks covered source-cell path reuse without another call, alternate branches, restoration after a learned plane, same-stage Regenerate variants, busy preview gating, cancellation/late responses, failed save retaining history, and successful automatic bundle contents. Test output was redirected to ignored build/evidence instead of the real Desktop. No paid request was made for this revision; this does not establish visual adherence by the real image model.
-    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingPane.xaml.cs; src/SequentialGallery/RenderingSession.cs; src/SequentialGallery/ResultExport.cs
+    source: tests/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingPane.xaml.cs; src/SequentialGallery/RenderingSession.cs; src/SequentialGallery/ResultExport.cs
     updated_at: '2026-11-14'
   - id: integrated-reference-provenance
     status: supported
     claim: In the exercised integrated flow, each shape handoff used its cached image in actual HTTP requests, retained its own rendering history, and exported the chosen AI result with its source geometry rather than the left pane's later selection.
     reason: The production panes and integrated window ran with real SPS and HTTP against the stand-in. The fixture recorded SHA-256 of decoded reference images; tests compared those hashes to distinct handed-off candidates and checked source records in exported files.
     verification: On dirty 47c866c, RenderingSmoke passed twelve AI-only regression calls plus seven multi-shape calls, and IntegratedSmoke passed four calls covering source A, regenerated A, source B, and the AI-only viewport. Independent review repeated all three pane/integrated smoke suites successfully. A separate real Rhino run made two local stand-in requests and 20 Grasshopper solutions, retaining source A/B explorations and restoring/applying source A values 55,55,55,0.7 on Finish while the left side remained at B. Cached reference hashes and six-file bundle provenance matched the chosen source. Export roots were redirected to ignored build output; no paid requests were made, and model image quality is not established.
-    source: smoke/IntegratedSmoke/Program.cs; smoke/RenderingSmoke/Program.cs; postman/mocks/openai-images/default.js; src/SequentialGallery/IntegratedWindow.xaml.cs; src/SequentialGallery/RenderingPane.xaml.cs
+    source: tests/IntegratedSmoke/Program.cs; tests/RenderingSmoke/Program.cs; tests/postman/mocks/openai-images/default.js; src/SequentialGallery/IntegratedWindow.xaml.cs; src/SequentialGallery/RenderingPane.xaml.cs
     updated_at: '2026-11-14'
   - id: standalone-final-rendering
     status: supported
     claim: Confirmed source choices can be combined independently for a new standalone rendering, and Finish saves the accepted generation snapshot rather than later draft edits.
     reason: IntegratedSmoke exercised production WPF panes, real SPS, and the HTTP client against the local size-aware stand-in. Assertions compared reference hashes, complete condition vectors, requested dimensions and quality, and saved PNG/text/JSON provenance.
     verification: On dirty 7b63f9c, the eight-call integrated run passed combined geometry A with conditions from geometry B, duplicate confirmation without advancement, multiple completed-choice disambiguation, custom and default standalone prompt construction, landscape high-quality generation, rejected and cancelled regeneration retaining the prior preview, save failure/retry, and portrait medium-quality AI-only completion. RenderingSmoke also passed twelve AI-only and seven multi-shape regression HTTP calls with the new confirmation action. A real Rhino run completed 11 solutions and two mock requests in 25.4 seconds, verifying latest-grid confirmation, cross-source A/B pairing, A reference hashes, full landscape/high output, accepted-snapshot export after unsent edits, and exact A slider restoration to 55,55,55,0.7. Slider metadata, wiring, existing Fillet Edge errors, and sample hashes were preserved. Exports were overridden to ignored build output; Desktop redirection and physical mouse interaction were not tested. No paid request was made; synthetic outputs establish request/state correctness rather than real-model fidelity.
-    source: smoke/IntegratedSmoke/Program.cs; src/SequentialGallery/FinalRenderingPane.cs; postman/mocks/openai-images/default.js; ignored build/evidence/rhino-final.txt
+    source: tests/IntegratedSmoke/Program.cs; src/SequentialGallery/FinalRenderingPane.cs; tests/postman/mocks/openai-images/default.js; ignored .cache/validation-archive/rhino-final.txt
     updated_at: '2026-11-14'
   - id: bounded-rendering-windows
     status: supported
     claim: In the exercised boundary flow, rendering matrices assigned valid conditions to every cell after corner zooms, and History restored the corrected sampling window without new HTTP calls.
     reason: Production RenderingSession and pane checks used the shared native bridge and real SPS, with actual HTTP requests through the existing stand-in. No variable values were clipped at the API or prompt layer.
     verification: On dirty ca474f1, RenderingSmoke passed twelve AI-only and seven multi-shape HTTP calls, including an actual corner-zoom matrix with all cells valid and no blank out-of-range placeholders, plus exact corrected-window history restoration. Direct session checks covered repeated corner selections and a learned plane on a 3x7 grid. IntegratedSmoke passed eight further HTTP calls for handoffs, cancellation/retry, independent histories, final generation, and exports. All 27 requests matched the fixture contract and none contained blank-cell placeholders. Native deterministic and C ABI tests separately covered safe whole-window translation, valid extrapolation, width retention, one-sided fresh planes, and clone isolation. A real Rhino geometry run kept all 54 cells in six grids in bounds, preserving slider metadata, sample hashes, wiring, and existing Fillet Edge errors. No paid requests were made; synthetic images do not establish real-model adherence.
-    source: native/search-window.hpp; native/window-smoke.cpp; native/bridge.cpp; smoke/Program.cs; smoke/RenderingSmoke/Program.cs; smoke/IntegratedSmoke/Program.cs; ignored build/evidence/rhino-boundary.txt
+    source: src/native/search-window.hpp; tests/NativeSmoke/window-smoke.cpp; src/native/bridge.cpp; tests/NativeSmoke/Program.cs; tests/RenderingSmoke/Program.cs; tests/IntegratedSmoke/Program.cs; ignored .cache/validation-archive/rhino-boundary.txt
     updated_at: '2026-11-15'
   - id: unsaved-close-confirmation
     status: supported
     claim: Declining closure preserves an unsaved final preview, and successful combined and AI-only Finish close without another discard prompt.
     reason: IntegratedSmoke injected close decisions into the production window while using real HTTP stand-ins for generation; the separate close-only flow exercised active geometry cancellation and disposal without HTTP.
     verification: On dirty ca474f1, all eight integrated image requests passed with zero build warnings or errors. Declining an X-style close kept the accepted preview and session, followed by successful export without another confirmation. The no-HTTP close-only run passed setup cancellation, visible Close, AI-only Close, busy No preserving work, approved deferred closure asking once, lifecycle bypass, and geometry-only saved Finish. The native MessageBox presentation and physical mouse interaction were not automated; its owned Yes/No and default-No arguments were inspected. No paid requests were made.
-    source: src/SequentialGallery/IntegratedWindow.xaml.cs; smoke/IntegratedSmoke/Program.cs
+    source: src/SequentialGallery/IntegratedWindow.xaml.cs; tests/IntegratedSmoke/Program.cs
     updated_at: '2026-11-15'
   - id: scrollable-image-inspection
     status: supported
     claim: In the exercised WPF flow, image zoom and two-axis scrolling preserved matrix cell selection, original image dimensions, and generated-result provenance without additional image requests.
     reason: The production viewer and panes ran in inactive offscreen WPF windows with actual layout and hit testing. The existing stand-in supplied the normal matrix and final PNG responses.
     verification: On dirty eb1efd6, the eight-call integrated run passed matrix hit testing after horizontal and vertical scrolling, manual zoom across Show Prompt layout changes, full 1536x1024 final-preview inspection, Fit reset, unchanged request counts, accepted-snapshot export, and the existing save/cancel checks. Separate no-HTTP view-only checks passed geometry native-size retention, both scroll offsets, real window resizing, Fit reset after overflow, geometry hit testing, History preview, and monotonic controls at extreme Fit scales. Close-only regression also passed. Release build had zero managed warnings or errors. No paid requests were made; physical mouse interaction inside Rhino and improved AI image fidelity were not established.
-    source: src/SequentialGallery/ImageViewport.cs; smoke/IntegratedSmoke/Program.cs; ignored build/evidence/image-scroll-matrix.png; ignored build/evidence/image-scroll-final.png
+    source: src/SequentialGallery/ImageViewport.cs; tests/IntegratedSmoke/Program.cs; ignored .cache/validation-archive/image-scroll-matrix.png; ignored .cache/validation-archive/image-scroll-final.png
     updated_at: '2026-11-15'
 fingerprints:
   - id: initial-rendering

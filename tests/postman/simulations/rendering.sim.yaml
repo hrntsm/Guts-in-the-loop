@@ -5,4 +5,4 @@ mocks:
     routeKey: openai
     origin:
       - api.openai.com
-    path: postman/mocks/openai-images/config.yaml
+    path: tests/postman/mocks/openai-images/config.yaml

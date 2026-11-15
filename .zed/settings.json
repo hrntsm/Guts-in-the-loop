@@ -9,8 +9,7 @@
     "**/bin",
     "**/obj",
     "build",
-    "tools",
-    "third_party",
+    ".cache",
     "artifacts"
   ]
 }

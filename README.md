@@ -18,6 +18,6 @@ Uses **Sequential Plane Search (SPS)**, a Bayesian optimization method that lear
 
 Set `OPENAI_API_KEY` before launching Rhino to use AI rendering. Results are saved under `Desktop/Guts-in-the-loop-results/`.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for building, development, validation, and packaging; [spec.md](spec.md) for detailed behavior; and [CONTEXT.md](CONTEXT.md) for terminology.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for building, development, validation, and packaging; [spec.md](docs/spec.md) for detailed behavior; and [CONTEXT.md](docs/CONTEXT.md) for terminology.
 
 Licensed under the [MIT License](LICENSE).

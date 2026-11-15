@@ -1,5 +1,7 @@
 # Sequential Gallery for Grasshopper — PoC Implementation Specification
 
+Sections 20 and 21 supersede earlier descriptions of crop-only Finish and unadjusted out-of-range candidates. Use those sections for current final rendering and boundary behavior; earlier validation records describe the revisions tested at that time.
+
 **Version:** 2.1
 
 **Updated:** 2026-11-14
