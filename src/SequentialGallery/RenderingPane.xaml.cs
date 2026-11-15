@@ -35,6 +35,9 @@ internal partial class RenderingPane : UserControl {
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly Stopwatch elapsed = new();
     private readonly List<RenderingHistoryNode> history = new();
+    private readonly List<RenderingChoice> completedChoices = new();
+    public IReadOnlyList<RenderingChoice> CompletedChoices => completedChoices;
+    internal RenderingApi CreateFinalApi() => createApi();
     private readonly Dictionary<string, RenderingRun> runs = new();
     private RenderingRun? currentRun;
     private RenderingConfiguration? configuration;
@@ -49,26 +52,23 @@ internal partial class RenderingPane : UserControl {
     private Button[] cells = Array.Empty<Button>();
     private Button[] promptCells = Array.Empty<Button>();
     private RenderingApi? api;
-    private BitmapSource? displayedImage, finalCrop;
+    private BitmapSource? displayedImage;
     private RenderingBatch? displayedBatch, inspectorBatch;
     private string frozenInitialPrompt = "", frozenNegativePrompt = "";
     private int[] exploredVariables = Array.Empty<int>();
-    private bool showingPrompt, busy, closed, final, peerBusy, disposed;
+    private bool showingPrompt, busy, closed, peerBusy, disposed;
     private CancellationTokenSource? cancellation;
     private int selected = -1;
     private string activity = "Generating matrix";
-    internal string? LastExportDirectory { get; private set; }
     public event Action? StateChanged;
     public event Action? CloseRequested;
-    public event Action? Finished;
     public bool IsBusy => busy;
-    public bool CanResume => !busy && !closed && !final && history.Count > 0;
+    public bool CanResume => !busy && !closed && history.Count > 0;
     public int? ActiveHistoryNodeId => activeNode?.Id;
     public GeometryCandidate? CurrentSource => currentRun?.Source;
     public IReadOnlyDictionary<int, GeometryCandidate?> HistorySources => history.ToDictionary(node => node.Id, node => runs[node.RunKey].Source);
     public IReadOnlyList<HistoryItem> HistoryItems => history.Select(node => new HistoryItem(node.Id, node.ParentId,
         $"Plane {node.State.Batch.Plane} · Step {node.State.Batch.SelectionStage}", node.Image, node.EdgeLabel, HistoryDetails(node))).ToArray();
-    public Func<GeometryCandidate, CancellationToken, Task>? ApplyGeometryForFinish { get; set; }
 
     public RenderingPane(Func<byte[]> captureReference, Func<RenderingApi>? createApi = null, bool integratedMode = false) {
         this.captureReference = captureReference;
@@ -107,7 +107,7 @@ internal partial class RenderingPane : UserControl {
     }
     public void SetPeerBusy(bool value) { if (peerBusy == value) return; peerBusy = value; UpdateControls(); }
     private void UpdateControls() {
-        bool ready = !busy && !closed && !final;
+        bool ready = !busy && !closed;
         bool configurable = ready && configuration == null;
         StartButton.IsEnabled = !integratedMode && configurable && variables.Count(v => v.IsChecked == true) >= 2;
         GridSummary.Text = $"{Rows * Columns} candidate slots · one image";
@@ -116,8 +116,8 @@ internal partial class RenderingPane : UserControl {
         NextButton.IsEnabled = canExplore && selected >= 0;
         RegenerateButton.IsEnabled = canExplore;
         RetryButton.IsEnabled = ready && session?.Pending != null && session.Faulted == false;
-        RetryButton.Visibility = session?.Pending != null && !final ? Visibility.Visible : Visibility.Collapsed;
-        FinishButton.IsEnabled = ready && !peerBusy && hasImage && selected >= 0;
+        RetryButton.Visibility = session?.Pending != null ? Visibility.Visible : Visibility.Collapsed;
+        ConfirmButton.IsEnabled = canExplore && selected >= 0;
         CancelButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         BusyProgress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         for (int i = 0; i < variables.Length; i++) {
@@ -150,7 +150,7 @@ internal partial class RenderingPane : UserControl {
         await StartRunAsync("viewport", null);
     }
     public async Task UseShapeAsync(GeometryCandidate source) {
-        if (!integratedMode || busy || closed || final) return;
+        if (!integratedMode || busy || closed) return;
         if (runs.TryGetValue(source.Key, out var existing)) {
             ActivateRun(existing);
             Status.Text = existing.Session.Pending != null
@@ -189,7 +189,7 @@ internal partial class RenderingPane : UserControl {
         MatrixImage.Source = displayedImage;
         SetupPanel.Visibility = Visibility.Collapsed;
         RenderingLayout.Visibility = MatrixView.Visibility = VariableSummary.Visibility = ShowPromptButton.Visibility = Visibility.Visible;
-        NextButton.Visibility = RegenerateButton.Visibility = FinishButton.Visibility = Visibility.Visible;
+        NextButton.Visibility = RegenerateButton.Visibility = ConfirmButton.Visibility = Visibility.Visible;
         VariableSummary.Text = string.Join(" · ", exploredVariables.Select(i => RenderingSession.Variables[i].Name));
         if (cells.Length == 0) {
             CellOverlay.Rows = run.Session.Rows; CellOverlay.Columns = run.Session.Columns;
@@ -210,11 +210,12 @@ internal partial class RenderingPane : UserControl {
         if (!NextButton.IsEnabled) return;
         int index = selected;
         var existing = history.FirstOrDefault(n => n.ParentId == activeNode?.Id && n.Cell == index);
-        if (existing != null) { ResumeHistory(existing.Id); return; }
+        if (existing != null) { RecordChoice(); ResumeHistory(existing.Id); return; }
         pendingParentId = activeNode?.Id; pendingCell = index;
         pendingEdge = $"R{index / session!.Columns + 1} C{index % session.Columns + 1}";
         await RunAsync(async token => {
             activity = "Updating the search plane"; await Task.Run(() => session!.Advance(index));
+            RecordChoice();
             token.ThrowIfCancellationRequested(); await GenerateAsync(token);
         });
     }
@@ -240,7 +241,7 @@ internal partial class RenderingPane : UserControl {
         displayedBatch = pending; displayedImage = image; MatrixImage.Source = image;
         selected = -1; PromptValueScroll.ScrollToTop(); PromptValueScroll.ScrollToHorizontalOffset(0);
         StageLabel.Text = $"Search plane {pending.Plane} · Selection {pending.SelectionStage} of 4";
-        Status.Text = $"Ready · {pending.Valid.Count(v => v)} valid cells · {elapsed.Elapsed.TotalSeconds:F1}s. Select a cell, then Next or Finish.";
+        Status.Text = $"Ready · {pending.Valid.Count(v => v)} valid cells · {elapsed.Elapsed.TotalSeconds:F1}s. Select a cell, then Next or Confirm selection.";
     }
     private string HistoryDetails(RenderingHistoryNode node) {
         var run = runs[node.RunKey];
@@ -270,7 +271,7 @@ internal partial class RenderingPane : UserControl {
         UpdateControls();
     }
     private void SelectCell(int index) {
-        if (busy || closed || final || session?.Pending != null || session?.Faulted != false || session.Displayed == null || index < 0 || index >= session.Displayed.Valid.Length || !session.Displayed.Valid[index]) return;
+        if (busy || closed || session?.Pending != null || session?.Faulted != false || session.Displayed == null || index < 0 || index >= session.Displayed.Valid.Length || !session.Displayed.Valid[index]) return;
         selected = index; UpdateControls();
     }
     private void ShowPromptClick(object sender, RoutedEventArgs e) {
@@ -324,7 +325,7 @@ internal partial class RenderingPane : UserControl {
             }).ToArray();
             inspectorBatch = batch;
         }
-        bool canSelect = !busy && !final && session?.Pending == null && session?.Faulted == false;
+        bool canSelect = !busy && session?.Pending == null && session?.Faulted == false;
         for (int i = 0; i < promptCells.Length; i++) {
             promptCells[i].IsEnabled = canSelect && batch.Valid[i];
             promptCells[i].Background = new SolidColorBrush(batch.Valid[i] ? Color.FromRgb(34, 43, 54) : Color.FromRgb(25, 30, 38));
@@ -347,7 +348,7 @@ internal partial class RenderingPane : UserControl {
         return details.ToString();
     }
     private async Task RunAsync(Func<CancellationToken, Task> operation) {
-        if (busy || closed || final) return;
+        if (busy || closed) return;
         busy = true; cancellation?.Dispose(); cancellation = new CancellationTokenSource();
         elapsed.Restart(); timer.Start(); UpdateControls();
         try { await operation(cancellation.Token); }
@@ -367,51 +368,19 @@ internal partial class RenderingPane : UserControl {
         int row = index / columns, column = index % columns, x = column * width / columns, y = row * height / rows;
         return new Int32Rect(x, y, (column + 1) * width / columns - x, (row + 1) * height / rows - y);
     }
-    private async void FinishClick(object sender, RoutedEventArgs e) {
-        if (!FinishButton.IsEnabled) return;
-        await RunAsync(async token => {
-            activity = "Saving rendering result";
-            var run = currentRun!;
-            var batch = displayedBatch!;
-            int cell = selected;
-            finalCrop = new CroppedBitmap(displayedImage!, CellBounds(displayedImage!.PixelWidth, displayedImage.PixelHeight, run.Session.Rows, run.Session.Columns, cell));
-            finalCrop.Freeze();
-            if (run.Source is GeometryCandidate source) {
-                if (ApplyGeometryForFinish == null) throw new InvalidOperationException("The source geometry cannot be applied.");
-                await ApplyGeometryForFinish(source, token);
-            }
-            token.ThrowIfCancellationRequested();
-            if (closed) return;
-            LastExportDirectory = ResultExport.Save(run.Source == null ? "rendering" : "combined", directory => {
-                SavePng(finalCrop, Path.Combine(directory, "rendering.png"));
-                File.WriteAllBytes(Path.Combine(directory, "reference.png"), run.Reference);
-                File.WriteAllText(Path.Combine(directory, "prompt.txt"), batch.Prompt);
-                if (run.Source != null) GeometryPane.WriteCandidateFiles(run.Source, directory);
-                var metadata = new {
-                    formatVersion = 1, kind = run.Source == null ? "ai-rendering" : "combined", createdAt = DateTimeOffset.UtcNow,
-                    initialPrompt = frozenInitialPrompt, negativePrompt = frozenNegativePrompt,
-                    rows = run.Session.Rows, columns = run.Session.Columns,
-                    selectedCell = new { row = cell / run.Session.Columns + 1, column = cell % run.Session.Columns + 1, index = cell, indexBase = 0 },
-                    sourceNode = activeNode!.Id, plane = batch.Plane, step = batch.SelectionStage,
-                    sourceGeometry = run.Source == null ? null : new {
-                        node = run.Source.SourceNodeId, cell = run.Source.Cell,
-                        row = run.Source.Cell / run.Source.Columns + 1, column = run.Source.Cell % run.Source.Columns + 1,
-                        rows = run.Source.Rows, columns = run.Source.Columns, plane = run.Source.Plane, step = run.Source.Step,
-                        parametersFile = "parameters.json", imageFile = "geometry.png"
-                    },
-                    image = new { file = "rendering.png", kind = "selected-cell crop of source matrix", width = finalCrop.PixelWidth, height = finalCrop.PixelHeight },
-                    sourceMatrix = new { width = displayedImage.PixelWidth, height = displayedImage.PixelHeight, promptFile = "prompt.txt" },
-                    referenceImage = "reference.png",
-                    generation = new { model = RenderingApi.Model, size = "1024x1024", quality = "low", outputFormat = "png", count = 1 },
-                    variables = RenderingSession.Variables.Select((variable, i) => new {
-                        name = variable.Name, value = batch.Values[cell][i], explored = exploredVariables.Contains(i), isFixed = !exploredVariables.Contains(i),
-                        description = RenderingSession.DescribeValue(batch.Values[cell], i)
-                    }).ToArray()
-                };
-                File.WriteAllText(Path.Combine(directory, "metadata.json"), JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
-            });
-            final = true; Finished?.Invoke();
-        });
+    private void RecordChoice() {
+        if (activeNode == null || displayedBatch == null || selected < 0 || currentRun == null) return;
+        if (completedChoices.Any(c => c.SourceNodeId == activeNode.Id && c.Cell == selected)) return;
+        var batch = displayedBatch;
+        completedChoices.Add(new RenderingChoice(activeNode.Id, selected, session!.Rows, session.Columns,
+            batch.Plane, batch.SelectionStage, (double[])batch.Values[selected].Clone(), (int[])exploredVariables.Clone(),
+            frozenInitialPrompt, frozenNegativePrompt, (byte[])currentRun.Reference.Clone(), currentRun.Source));
+    }
+    private void ConfirmClick(object sender, RoutedEventArgs e) {
+        if (!ConfirmButton.IsEnabled) return;
+        RecordChoice();
+        Status.Text = "Selection confirmed for final rendering. Choose its source node in History.";
+        UpdateControls();
     }
     internal static void SavePng(BitmapSource image, string path) => ResultExport.SavePng(image, path);
     public void Cancel() => cancellation?.Cancel();
@@ -427,6 +396,6 @@ internal partial class RenderingPane : UserControl {
         disposed = true; timer.Stop(); api?.Dispose(); api = null; cancellation?.Dispose();
         foreach (var run in runs.Values) run.Session.Dispose();
         foreach (var node in history) node.State.Dispose();
-        runs.Clear(); history.Clear(); currentRun = null;
+        runs.Clear(); history.Clear(); completedChoices.Clear(); currentRun = null;
     }
 }

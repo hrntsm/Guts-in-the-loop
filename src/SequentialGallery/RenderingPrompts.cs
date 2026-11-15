@@ -5,7 +5,7 @@ namespace SequentialGallery;
 
 internal sealed record RenderingPrompts(
     string DefaultInitialPrompt, string DefaultNegativePrompt, string Layout, string SceneRules, string FixedSceneRules,
-    string InteractionRules, string BlankCell, string Rain, string Snow, RenderingVariable[] Variables) {
+    string InteractionRules, string BlankCell, string Rain, string Snow, string FinalLayout, string FinalSceneRules, RenderingVariable[] Variables) {
     public static readonly RenderingPrompts Current = Load();
 
     private static RenderingPrompts Load() {

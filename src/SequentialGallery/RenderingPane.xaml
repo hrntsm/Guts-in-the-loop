@@ -39,7 +39,7 @@
     <Button x:Name="RetryButton" Content="Retry" Click="RetryClick" Visibility="Collapsed"/>
     <Button x:Name="RegenerateButton" Content="Regenerate" Click="RegenerateClick" Visibility="Collapsed"/>
     <Button x:Name="NextButton" Content="Next" Click="NextClick" Visibility="Collapsed"/>
-    <Button x:Name="FinishButton" Content="Finish" Click="FinishClick" Visibility="Collapsed"/>
+    <Button x:Name="ConfirmButton" Content="Confirm selection" Click="ConfirmClick" Visibility="Collapsed"/>
     <Button x:Name="ShowPromptButton" Content="Show Prompt" Click="ShowPromptClick" Visibility="Collapsed"/>
    </WrapPanel>
   </StackPanel>

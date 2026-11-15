@@ -9,6 +9,7 @@ namespace SequentialGallery;
 internal partial class IntegratedWindow : Window {
     internal GeometryPane? Geometry { get; }
     internal RenderingPane Rendering { get; }
+    internal FinalRenderingPane FinalRendering { get; }
     private bool closing, closed, refreshing, handlingClose, closeScheduled;
 
     public IntegratedWindow(Func<IGeometryHost>? createGeometryHost, TimeSpan? lastSolution,
@@ -29,11 +30,22 @@ internal partial class IntegratedWindow : Window {
         RenderingSlot.Content = Rendering;
         Rendering.StateChanged += Refresh;
         Rendering.CloseRequested += RequestClose;
-        Rendering.Finished += RequestClose;
-        if (Geometry != null) Rendering.ApplyGeometryForFinish = Geometry.ApplyCandidateAsync;
+        FinalRendering = new FinalRenderingPane(Rendering.CreateFinalApi, Geometry == null ? null : Geometry.ApplyCandidateAsync);
+        FinalSlot.Content = FinalRendering;
+        FinalRendering.StateChanged += Refresh;
+        FinalRendering.Finished += RequestClose;
+        FinalRendering.BackRequested += () => {
+            FinalSlot.Visibility = Visibility.Collapsed; ModeTabs.Visibility = Visibility.Visible;
+            ModeTabs.SelectedIndex = 1; Refresh();
+        };
+        History.FinalRequested += (geometry, conditions) => {
+            if (closing || Geometry?.IsBusy == true || Rendering.IsBusy || FinalRendering.IsBusy) return;
+            FinalRendering.SetSelection(geometry, conditions);
+            ModeTabs.Visibility = Visibility.Collapsed; FinalSlot.Visibility = Visibility.Visible;
+        };
         History.ResumeRequested += ResumeHistory;
         Closing += ClosingWindow;
-        Closed += (_, _) => { closed = true; Geometry?.Shutdown(); Rendering.Shutdown(); };
+        Closed += (_, _) => { closed = true; Geometry?.Shutdown(); Rendering.Shutdown(); FinalRendering.Shutdown(); };
         ModeLabel.Text = Geometry == null ? "AI rendering only · fixed viewport reference"
             : "Geometry on the left · AI rendering on the right · select a shape and choose Use this shape";
         var workArea = SystemParameters.WorkArea;
@@ -59,11 +71,13 @@ internal partial class IntegratedWindow : Window {
         try {
             Geometry?.SetPeerBusy(Rendering.IsBusy);
             Rendering.SetPeerBusy(Geometry?.IsBusy == true);
+            History.SetCompletedChoices(Geometry?.CompletedChoices, Rendering.CompletedChoices,
+                !closing && Geometry?.IsBusy != true && !Rendering.IsBusy && FinalRendering?.IsBusy != true);
             History.SetItems(Geometry?.HistoryItems, Geometry?.ActiveHistoryNodeId,
                 Geometry != null && Geometry.CanResumeHistory && !closing,
                 Rendering.HistoryItems, Rendering.ActiveHistoryNodeId,
                 Rendering.CanResume && !closing, Rendering.HistorySources, Geometry != null);
-            if (closing && !handlingClose && !closeScheduled && Geometry?.IsBusy != true && !Rendering.IsBusy) {
+            if (closing && !handlingClose && !closeScheduled && Geometry?.IsBusy != true && !Rendering.IsBusy && FinalRendering?.IsBusy != true) {
                 closeScheduled = true;
                 Dispatcher.BeginInvoke(new Action(() => { closeScheduled = false; if (!closed) Close(); }));
             }
@@ -86,8 +100,8 @@ internal partial class IntegratedWindow : Window {
         try {
             closing = true;
             ModeLabel.Text = "Closing after active work stops. Late image responses will be ignored.";
-            Geometry?.Cancel(); Rendering.Cancel();
-            if (Geometry?.IsBusy == true || Rendering.IsBusy) e.Cancel = true;
+            Geometry?.Cancel(); Rendering.Cancel(); FinalRendering.Cancel();
+            if (Geometry?.IsBusy == true || Rendering.IsBusy || FinalRendering.IsBusy) e.Cancel = true;
         } finally { handlingClose = false; }
         if (e.Cancel) Refresh();
     }

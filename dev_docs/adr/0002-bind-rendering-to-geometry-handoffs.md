@@ -5,3 +5,5 @@ In the integrated window, `Use this shape` supplies a selected geometry history 
 Automatically updating AI on every geometry selection would tightly couple progress and generation cost. Explicit handoffs allow both sides to remain usable while keeping each rendering image attributable to the exact geometry that informed it. Restoring AI history therefore does not rewind the geometry side.
 
 Finish uses the selected AI image's source geometry, not the geometry side's latest selection. Apply and export that source's recorded variables with the AI result so the final geometry and rendering remain a consistent pair.
+
+The crop-export Finish rule above is superseded for the new standalone final-render workflow by ADR 0003 and specification Section 20: that workflow uses an explicitly selected geometry/conditions pair. Ordinary exploration histories and their handoff references remain bound as described here.

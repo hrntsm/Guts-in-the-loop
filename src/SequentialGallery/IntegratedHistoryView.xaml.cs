@@ -21,10 +21,64 @@ internal partial class IntegratedHistoryView : UserControl {
     private Point? panOrigin;
     private double panHorizontal, panVertical;
     public event Action<bool, int>? ResumeRequested;
+    public event Action<GeometryCandidate?, RenderingChoice>? FinalRequested;
+    private sealed record ChoiceOption(int Cell, string Label);
+    private IReadOnlyList<GeometryCandidate> geometryChoices = Array.Empty<GeometryCandidate>();
+    private IReadOnlyList<RenderingChoice> renderingChoices = Array.Empty<RenderingChoice>();
+    private GeometryCandidate? finalGeometry;
+    private RenderingChoice? finalConditions;
+    private bool finalAllowed;
+    private string? finishingPreviewKey;
     internal int HandoffCount => handoffLines.Count;
     internal int NodeCount => entries.Length;
 
-    public IntegratedHistoryView() { InitializeComponent(); ApplyZoom(); }
+    public IntegratedHistoryView() {
+        InitializeComponent(); ApplyZoom();
+        CompletedChoice.SelectionChanged += (_, _) => ChooseFinalButton.IsEnabled = finalAllowed && CompletedChoice.SelectedItem != null;
+    }
+    public void SetCompletedChoices(IReadOnlyList<GeometryCandidate>? geometry, IReadOnlyList<RenderingChoice> rendering, bool allowed) {
+        geometryChoices = geometry ?? Array.Empty<GeometryCandidate>(); renderingChoices = rendering; finalAllowed = allowed;
+        UpdateFinishing();
+    }
+    internal bool SelectForFinal(bool geometry, int node, int cell) {
+        if (!finalAllowed) return false;
+        if (geometry) {
+            var choice = geometryChoices.FirstOrDefault(c => c.SourceNodeId == node && c.Cell == cell);
+            if (choice == null) return false; finalGeometry = choice;
+        } else {
+            var choice = renderingChoices.FirstOrDefault(c => c.SourceNodeId == node && c.Cell == cell);
+            if (choice == null) return false; finalConditions = choice;
+        }
+        UpdateFinishing(); return true;
+    }
+    internal void OpenFinal() {
+        if (OpenFinalButton.IsEnabled && finalConditions != null) FinalRequested?.Invoke(combined ? finalGeometry : null, finalConditions);
+    }
+    private void ChooseFinalClick(object sender, RoutedEventArgs e) {
+        var entry = entries.FirstOrDefault(e => e.Key == previewKey);
+        if (entry != null && CompletedChoice.SelectedItem is ChoiceOption choice)
+            SelectForFinal(entry.Geometry, entry.Item.Id, choice.Cell);
+    }
+    private void OpenFinalClick(object sender, RoutedEventArgs e) => OpenFinal();
+    private void UpdateFinishing() {
+        var entry = entries.FirstOrDefault(e => e.Key == previewKey);
+        int? previous = finishingPreviewKey == previewKey && CompletedChoice.Items.Count > 1 ? (CompletedChoice.SelectedItem as ChoiceOption)?.Cell : null;
+        finishingPreviewKey = previewKey;
+        var options = entry == null ? Array.Empty<ChoiceOption>() : entry.Geometry
+            ? geometryChoices.Where(c => c.SourceNodeId == entry.Item.Id).Select(c => new ChoiceOption(c.Cell, $"R{c.Cell / c.Columns + 1} C{c.Cell % c.Columns + 1}")).ToArray()
+            : renderingChoices.Where(c => c.SourceNodeId == entry.Item.Id).Select(c => new ChoiceOption(c.Cell, $"R{c.Cell / c.Columns + 1} C{c.Cell % c.Columns + 1}")).ToArray();
+        CompletedChoice.ItemsSource = options;
+        // Multiple recorded branches require an explicit choice; never pick the most recent one.
+        CompletedChoice.SelectedItem = options.Length == 1 ? options[0] : options.FirstOrDefault(c => c.Cell == previous);
+        CompletedChoice.Visibility = options.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
+        ChooseFinalButton.IsEnabled = finalAllowed && CompletedChoice.SelectedItem != null;
+        ChooseFinalButton.Content = entry?.Geometry == true ? "Use geometry for final" : "Use conditions for final";
+        FinalSelectionLabel.Text = (combined ? finalGeometry == null ? "Geometry: not selected" :
+            $"Geometry: G{finalGeometry.SourceNodeId + 1} R{finalGeometry.Cell / finalGeometry.Columns + 1} C{finalGeometry.Cell % finalGeometry.Columns + 1}" : "Geometry: original viewport reference")
+            + " · " + (finalConditions == null ? "Conditions: not selected" : finalConditions.Label)
+            + (options.Length == 0 ? "\nConfirm a selection in Evaluate or use Next to make this source node eligible." : "");
+        OpenFinalButton.IsEnabled = finalAllowed && finalConditions != null && (!combined || finalGeometry != null);
+    }
     public void SetItems(IEnumerable<HistoryItem>? geometry, int? activeGeometry, bool geometryCanResume,
         IEnumerable<HistoryItem> rendering, int? activeRendering, bool renderingCanResume,
         IReadOnlyDictionary<int, GeometryCandidate?> sources, bool combined) {
@@ -78,7 +132,9 @@ internal partial class IntegratedHistoryView : UserControl {
         foreach (var entry in entries) {
             var stack = new StackPanel();
             bool active = (entry.Geometry ? activeGeometry : activeRendering) == entry.Item.Id;
-            stack.Children.Add(new TextBlock { Text = $"{(entry.Geometry ? "G" : "AI")}{entry.Item.Id + 1}  {entry.Item.Title}" + (active ? " · Active" : ""), Foreground = Brushes.White, FontSize = 11, Margin = new Thickness(5), TextWrapping = TextWrapping.Wrap });
+            int confirmed = entry.Geometry ? geometryChoices.Count(c => c.SourceNodeId == entry.Item.Id) : renderingChoices.Count(c => c.SourceNodeId == entry.Item.Id);
+            stack.Children.Add(new TextBlock { Text = $"{(entry.Geometry ? "G" : "AI")}{entry.Item.Id + 1}  {entry.Item.Title}" + (active ? " · Active" : "")
+                + (confirmed > 0 ? $" · {confirmed} confirmed" : ""), Foreground = Brushes.White, FontSize = 11, Margin = new Thickness(5), TextWrapping = TextWrapping.Wrap });
             stack.Children.Add(new Image { Source = entry.Item.Image, Width = 168, Height = 92, Stretch = Stretch.Uniform });
             var button = new Button { Content = stack, Background = new SolidColorBrush(Color.FromRgb(34, 43, 54)), BorderThickness = new Thickness(0), Padding = new Thickness(0), Margin = new Thickness(0) };
             button.Click += (_, _) => Preview(entry.Geometry, entry.Item.Id);
@@ -159,6 +215,7 @@ internal partial class IntegratedHistoryView : UserControl {
         if (entry != null && !entry.Geometry && source != null)
             PreviewDetails.Text = $"Source: geometry #{source.SourceNodeId + 1}, R{source.Cell / source.Columns + 1} C{source.Cell % source.Columns + 1}\n\n" + PreviewDetails.Text;
         ResumeButton.IsEnabled = entry != null && (entry.Geometry ? geometryCanResume : renderingCanResume);
+        UpdateFinishing();
     }
     private void ResumeClick(object sender, RoutedEventArgs e) => ResumeSelected();
     private void ZoomChanged(object sender, RoutedPropertyChangedEventArgs<double> e) { if (GraphCanvas != null) ApplyZoom(); }

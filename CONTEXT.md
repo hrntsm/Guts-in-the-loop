@@ -16,6 +16,9 @@ A retained path of exploration steps descended from earlier candidate selections
 **History node**:
 One displayed candidate grid at a particular exploration step, including intermediate zoom stages. It identifies a point from which the corresponding exploration state can be restored.
 
+**Completed finishing choice**:
+A candidate explicitly confirmed in Evaluate or committed through Next, identified by its source history node and cell. It is eligible for finishing without requiring another generated grid.
+
 **Regeneration variant**:
 An AI rendering history node containing a newly generated matrix for the same candidate conditions and optimizer state as its source node. The source remains available, and either image variant can be used to continue exploration without treating regeneration itself as a preference selection.
 
@@ -82,8 +85,11 @@ The rendering variable ordered linearly from spring (0), through summer (1/3) an
 **Weather**:
 The continuous rendering variable from good weather (0) to bad weather (1). Bad-weather precipitation is rain in spring, summer, and autumn, transitioning continuously through sleet between autumn and winter to snow in winter; winter alone does not request snow.
 
-**Final rendering**:
-The selected rendering cell cropped from its source matrix at the generated resolution. Finish saves that crop with its source prompt, input image, and conditions before closing, without another generation or upscaling.
+**Rendering crop**:
+A candidate cell extracted from an exploration matrix at its original resolution. It is distinct from a newly generated full-size final render.
+
+**Final render**:
+A newly generated standalone image using a geometry choice and rendering conditions selected from History. It is distinct from exporting an existing matrix cell as a crop.
 
 **Pending rendering generation**:
 The fixed reference image, candidate conditions, grid mapping, prompt, and output settings awaiting a successful AI matrix response. Retry resends these conditions without adding another SPS selection or advancing the search again.

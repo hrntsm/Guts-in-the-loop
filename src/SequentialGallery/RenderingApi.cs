@@ -18,11 +18,15 @@ internal sealed class RenderingApi : IDisposable {
         client = new HttpClient { BaseAddress = target, Timeout = TimeSpan.FromMinutes(5) };
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey.Trim());
     }
-    public async Task<byte[]> GenerateAsync(byte[] reference, string prompt, CancellationToken cancellation) {
+    public Task<byte[]> GenerateAsync(byte[] reference, string prompt, CancellationToken cancellation) =>
+        GenerateAsync(reference, prompt, "1024x1024", "low", cancellation);
+    public async Task<byte[]> GenerateAsync(byte[] reference, string prompt, string size, string quality, CancellationToken cancellation) {
+        if (size != "1024x1024" && size != "1536x1024" && size != "1024x1536") throw new ArgumentException("Unsupported image size.");
+        if (quality != "low" && quality != "medium" && quality != "high") throw new ArgumentException("Unsupported image quality.");
         var payload = new {
             model = Model,
             images = new[] { new { image_url = "data:image/png;base64," + Convert.ToBase64String(reference) } },
-            prompt, n = 1, size = "1024x1024", quality = "low", output_format = "png"
+            prompt, n = 1, size, quality, output_format = "png"
         };
         using var response = await client.PostAsJsonAsync("", payload, cancellation).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) {

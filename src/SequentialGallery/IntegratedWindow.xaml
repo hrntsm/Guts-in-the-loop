@@ -13,6 +13,7 @@
    <TextBlock Text="GUT(S)-IN-THE-LOOP" FontSize="23" FontWeight="SemiBold"/>
    <TextBlock x:Name="ModeLabel" TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,5,0,0"/>
   </StackPanel>
+  <Grid>
   <TabControl x:Name="ModeTabs" Background="#151A21" Foreground="White" SelectionChanged="ModeChanged">
    <TabItem Header="Evaluate">
     <Grid>
@@ -24,5 +25,7 @@
    </TabItem>
    <TabItem Header="History"><local:IntegratedHistoryView x:Name="History"/></TabItem>
   </TabControl>
+  <ContentControl x:Name="FinalSlot" Visibility="Collapsed"/>
+  </Grid>
  </DockPanel>
 </Window>

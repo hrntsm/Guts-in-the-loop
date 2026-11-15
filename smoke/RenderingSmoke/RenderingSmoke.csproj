@@ -14,6 +14,7 @@
   <Compile Include="../../src/SequentialGallery/SpsEngine.cs" Link="SpsEngine.cs"/>
   <Compile Include="../../src/SequentialGallery/RenderingSession.cs" Link="RenderingSession.cs"/>
   <Compile Include="../../src/SequentialGallery/RenderingApi.cs" Link="RenderingApi.cs"/>
+  <Compile Include="../../src/SequentialGallery/FinalRenderingPane.cs" Link="FinalRenderingPane.cs"/>
   <Compile Include="../../src/SequentialGallery/RenderingPane.xaml.cs" Link="RenderingPane.xaml.cs"/>
   <Page Include="../../src/SequentialGallery/RenderingPane.xaml" Link="RenderingPane.xaml"/>
  </ItemGroup>

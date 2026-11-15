@@ -36,7 +36,6 @@ internal static class Program {
                 window = new RenderingPane(() => { captures++; return reference; }, live
                     ? () => new RenderingApi(Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "")
                     : () => new RenderingApi("simulation-only", new Uri("http://localhost:4900/openai/v1/images/edits")));
-                window.Finished += window.Shutdown;
                 window.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
                 Require(captures == 0 && Field<RenderingSession?>(window, "session") == null, "Opening setup must stay idle.");
                 const string fixedScene = "Keep the building single-storey. Preserve its massing and camera angle.";
@@ -227,39 +226,18 @@ internal static class Program {
                 }
                 Capture(window, live ? "build/evidence/rendering-live-gallery.png" : "build/evidence/rendering-gallery.png");
                 SelectCenter(window);
-                string exportedPrompt = session.Displayed!.Prompt;
-                double[] exportedValues = session.Displayed.Values[12];
-                if (!live) {
-                    string blockedDestination = Path.GetFullPath("build/evidence/rendering-export-blocker");
-                    File.WriteAllText(blockedDestination, "Not a directory.");
-                    ResultExport.RootDirectoryOverride = blockedDestination;
-                    Click(window, "FinishButton"); await Wait(window);
-                    Require(Status(window).Contains("Could not save") && !Field<bool>(window, "closed")
-                        && Field<List<RenderingHistoryNode>>(window, "history").Count > 0, "Save failure must retain the window and history for retry.");
-                    ResultExport.RootDirectoryOverride = Path.GetFullPath("build/evidence/rendering-results");
-                }
-                Click(window, "FinishButton"); await Wait(window);
-                var crop = Field<BitmapSource>(window, "finalCrop");
-                Require(crop.PixelWidth is 204 or 205 && crop.PixelHeight is 204 or 205, "Finish must crop original matrix pixels.");
-                Require(Field<bool>(window, "closed") && Field<List<RenderingHistoryNode>>(window, "history").Count == 0, "Successful Finish must close and release session history.");
-                string exportDirectory = window.LastExportDirectory ?? throw new InvalidOperationException("Finish did not save a result directory.");
-                Require(File.ReadAllBytes(Path.Combine(exportDirectory, "reference.png")).SequenceEqual(reference), "Export must preserve the original reference image bytes.");
-                Require(File.ReadAllText(Path.Combine(exportDirectory, "prompt.txt")) == exportedPrompt, "Export must record the exact source matrix prompt.");
-                using (var metadata = JsonDocument.Parse(File.ReadAllText(Path.Combine(exportDirectory, "metadata.json")))) {
-                    Require(metadata.RootElement.GetProperty("selectedCell").GetProperty("index").GetInt32() == 12, "Export must identify the selected cell.");
-                    Require(metadata.RootElement.GetProperty("variables").EnumerateArray().Select(v => v.GetProperty("value").GetDouble()).SequenceEqual(exportedValues), "Export must include the selected cell's exact parameter vector.");
-                    if (!live) Require(metadata.RootElement.GetProperty("initialPrompt").GetString() == fixedScene
-                        && metadata.RootElement.GetProperty("negativePrompt").GetString() == fixedNegative, "Export must retain both frozen prompt categories.");
-                }
-                string cropPath = live ? "build/evidence/rendering-live-crop.png" : "build/evidence/rendering-crop.png";
-                RenderingPane.SavePng(crop, cropPath);
-                var saved = RenderingPane.Decode(File.ReadAllBytes(cropPath));
-                Require(saved.PixelWidth == crop.PixelWidth && saved.PixelHeight == crop.PixelHeight, "PNG save must preserve crop dimensions.");
-                var last = RenderingPane.CellBounds(1024, 1024, 5, 5, 24);
-                Require(last.X + last.Width == 1024 && last.Y + last.Height == 1024, "Integer crop edges must cover the final pixel.");
+                var beforeConfirm = session.CaptureState();
+                int choicesBefore = window.CompletedChoices.Count;
+                bool alreadyConfirmed = window.CompletedChoices.Any(c => c.SourceNodeId == window.ActiveHistoryNodeId && c.Cell == 12);
+                Click(window, "ConfirmButton"); Click(window, "ConfirmButton");
+                Require(window.CompletedChoices.Count == choicesBefore + (alreadyConfirmed ? 0 : 1), "Repeated confirmation must deduplicate source node and cell.");
+                var choice = window.CompletedChoices.Single(c => c.SourceNodeId == window.ActiveHistoryNodeId && c.Cell == 12);
+                Require(choice.SourceNodeId == window.ActiveHistoryNodeId && choice.Values.SequenceEqual(session.Displayed!.Values[12]), "Confirmation records the source grid and exact complete vector.");
+                Require(session.Displayed.SelectionStage == beforeConfirm.Batch.SelectionStage && session.Displayed.Plane == beforeConfirm.Batch.Plane && session.Pending == null, "Confirmation must not advance or generate.");
+                beforeConfirm.Dispose();
                 Require(captures == 1, "Next/Retry/Regenerate must never recapture the reference.");
                 if (!live) await CheckHandoffsAsync();
-                Console.WriteLine(live ? "PASS: live OpenAI image edit -> production WPF gallery -> selected crop -> PNG, with one fixed reference capture." : "PASS: idle setup, fixed reference, variable mappings, supported grids, cell selection, final crop, PNG round-trip.");
+                Console.WriteLine(live ? "PASS: live OpenAI image edit -> production WPF gallery -> confirmed choice, with one fixed reference capture." : "PASS: idle setup, fixed reference, variable mappings, supported grids, cell selection, completed-choice confirmation.");
             } catch (Exception error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; }
             finally { window?.Shutdown(); ResultExport.RootDirectoryOverride = null; control.Dispose(); app.Shutdown(); }
         };
@@ -268,8 +246,6 @@ internal static class Program {
     private static async Task CheckHandoffsAsync() {
         var pane = new RenderingPane(() => throw new InvalidOperationException("Combined mode must not capture the live viewport."),
             () => new RenderingApi("simulation-only", new Uri("http://localhost:4900/openai/v1/images/edits")), integratedMode: true);
-        bool finished = false;
-        pane.Finished += () => { finished = true; pane.Shutdown(); };
         try {
             int before = await RequestCount();
             var sourceA = MakeCandidate(4, 12, 15, MakeReference());
@@ -318,38 +294,20 @@ internal static class Program {
                 "Returning to a failed handoff must offer Retry rather than automatically request another image.");
             Click(pane, "RetryButton"); await Wait(pane);
             pane.ResumeHistory(rootA); SelectCenter(pane);
+            int confirmations = pane.CompletedChoices.Count;
             pane.SetPeerBusy(true);
-            Require(!((Button)pane.FindName("FinishButton")).IsEnabled && ((Button)pane.FindName("NextButton")).IsEnabled,
-                "Geometry computation must gate Finish but leave AI exploration independently usable.");
-            pane.SetPeerBusy(false);
-            bool rejectApply = true;
-            string? appliedSource = null;
-            pane.ApplyGeometryForFinish = async (candidate, token) => {
-                await Task.Yield(); token.ThrowIfCancellationRequested();
-                if (rejectApply) throw new InvalidOperationException("Injected geometry application failure.");
-                appliedSource = candidate.Key;
-            };
-            Click(pane, "FinishButton"); await Wait(pane);
-            Require(!finished && pane.HistoryItems.Count > 0 && ((Button)pane.FindName("FinishButton")).IsEnabled,
-                "Failed source application must retain the final result and history for retry.");
-            rejectApply = false;
-            Click(pane, "FinishButton"); await Wait(pane);
-            Require(finished && appliedSource == sourceA.Key && pane.HistoryItems.Count == 0, "Finish must apply the selected rendering's source and release every run after success.");
-            string directory = pane.LastExportDirectory!;
-            Require(File.ReadAllBytes(Path.Combine(directory, "reference.png")).SequenceEqual(sourceA.ReferencePng)
-                && File.ReadAllBytes(Path.Combine(directory, "geometry.png")).SequenceEqual(sourceA.ReferencePng), "Combined export must use the AI source image, not the latest other shape.");
-            using var parameters = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "parameters.json")));
-            Require(parameters.RootElement.GetProperty("variables")[0].GetProperty("value").GetDecimal() == sourceA.Variables[0].Value, "Combined export must preserve source geometry's exact decimal values.");
-            using var metadata = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "metadata.json")));
-            Require(metadata.RootElement.GetProperty("sourceGeometry").GetProperty("node").GetInt32() == sourceA.SourceNodeId
-                && metadata.RootElement.GetProperty("sourceGeometry").GetProperty("cell").GetInt32() == sourceA.Cell, "Combined metadata must identify the exact handed-off history node and cell.");
-            Require(await RequestCount() == before + 7, "Shape navigation and Finish must not introduce extra image generation.");
+            Require(((Button)pane.FindName("ConfirmButton")).IsEnabled && ((Button)pane.FindName("NextButton")).IsEnabled,
+                "Geometry computation must leave AI selection confirmation independently usable.");
+            Click(pane, "ConfirmButton"); Click(pane, "ConfirmButton");
+            Require(pane.CompletedChoices.Count == confirmations, "Previously committed source choice must deduplicate confirmation.");
+            Require(pane.HistoryItems.Count > 0 && pane.CurrentSource!.Key == sourceA.Key, "Confirmation must retain all runs without applying geometry.");
+            Require(await RequestCount() == before + 7, "Shape navigation and confirmation must not introduce extra image generation.");
             using (var stats = await JsonDocument.ParseAsync(await control.GetStreamAsync("stats"))) {
                 var sent = stats.RootElement.GetProperty("requests").EnumerateArray().Skip(before).Select(r => r.GetProperty("referenceSha256").GetString()).ToArray();
                 Require(sent.SequenceEqual(new[] { sourceA, sourceA, sourceB, sourceB, sourceB, sourceC, sourceC }.Select(s => ReferenceHash(s.ReferencePng))),
                     "Every actual HTTP request must use the exact source image of its own shape, including cancellation and Retry.");
             }
-            Console.WriteLine("PASS: multi-shape handoffs, frozen shared configuration, independent retained runs, busy guards, pending handoff Retry, and source-consistent combined Finish.");
+            Console.WriteLine("PASS: multi-shape handoffs, frozen shared configuration, independent retained runs, busy guards, pending handoff Retry, and source-specific confirmation.");
         } finally { pane.Shutdown(); }
     }
     private static GeometryCandidate MakeCandidate(int node, int cell, decimal value, byte[] reference) => new(node, cell, 5, 5, 1, 1, reference,

@@ -15,6 +15,13 @@ internal sealed record GeometryCandidate(int SourceNodeId, int Cell, int Rows, i
     public string Key => $"{SourceNodeId}:{Cell}";
 }
 
+internal sealed record RenderingChoice(int SourceNodeId, int Cell, int Rows, int Columns, int Plane, int Step,
+    double[] Values, int[] ExploredVariables, string InitialPrompt, string NegativePrompt,
+    byte[] ReferencePng, GeometryCandidate? OriginalGeometry) {
+    public string Key => $"{SourceNodeId}:{Cell}";
+    public string Label => $"AI #{SourceNodeId + 1} · R{Cell / Columns + 1} C{Cell % Columns + 1}";
+}
+
 internal interface IGeometryHost : IDisposable {
     int Dimensions { get; }
     Task<double[]> ApplyAsync(double[] normalized, CancellationToken cancellation);

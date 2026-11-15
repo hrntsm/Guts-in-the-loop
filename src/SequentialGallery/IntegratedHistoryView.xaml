@@ -3,7 +3,19 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Background="#151A21" Foreground="White">
  <Grid>
+  <Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <Grid.ColumnDefinitions><ColumnDefinition Width="3*" MinWidth="350"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*" MinWidth="240"/></Grid.ColumnDefinitions>
+  <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="8">
+   <WrapPanel>
+    <TextBlock Text="Completed choice in preview: " VerticalAlignment="Center"/>
+    <ComboBox x:Name="CompletedChoice" MinWidth="170" Margin="4" DisplayMemberPath="Label"/>
+    <Button x:Name="ChooseFinalButton" Content="Use for final rendering" Padding="12,8" Margin="4" Click="ChooseFinalClick" IsEnabled="False"/>
+   </WrapPanel>
+   <WrapPanel>
+    <TextBlock x:Name="FinalSelectionLabel" TextWrapping="Wrap" VerticalAlignment="Center" Margin="4" MaxWidth="680"/>
+    <Button x:Name="OpenFinalButton" Content="Configure final rendering" Padding="12,8" Margin="4" Click="OpenFinalClick" IsEnabled="False"/>
+   </WrapPanel>
+  </StackPanel>
   <DockPanel>
    <StackPanel DockPanel.Dock="Top" Margin="8">
     <TextBlock Text="Connected exploration history" FontSize="19" FontWeight="SemiBold"/>

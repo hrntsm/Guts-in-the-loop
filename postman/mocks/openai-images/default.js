@@ -18,16 +18,19 @@ function chunk(type, data) {
   size.writeUInt32BE(data.length); crc.writeUInt32BE(crc32(Buffer.concat([name, data])));
   return Buffer.concat([size, name, data, crc]);
 }
+function image(size) {
+const [width, height] = size.split('x').map(Number);
 const header = Buffer.alloc(13);
-header.writeUInt32BE(1024, 0); header.writeUInt32BE(1024, 4); header[8] = 8; header[9] = 2;
-const pixels = Buffer.alloc((1024 * 3 + 1) * 1024);
-for (let y = 0; y < 1024; y++) for (let x = 0; x < 1024; x++) {
-  const offset = y * 3073 + 1 + x * 3;
-  pixels[offset] = Math.floor(x / 205) * 40;
-  pixels[offset + 1] = Math.floor(y / 205) * 40;
+header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 2;
+const pixels = Buffer.alloc((width * 3 + 1) * height);
+for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+  const offset = y * (width * 3 + 1) + 1 + x * 3;
+  pixels[offset] = Math.floor(x / 205) * 40 % 256;
+  pixels[offset + 1] = Math.floor(y / 205) * 40 % 256;
   pixels[offset + 2] = 150;
 }
-const png = Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), chunk('IHDR', header), chunk('IDAT', zlib.deflateSync(pixels)), chunk('IEND', Buffer.alloc(0))]).toString('base64');
+return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), chunk('IHDR', header), chunk('IDAT', zlib.deflateSync(pixels)), chunk('IEND', Buffer.alloc(0))]).toString('base64');
+}
 async function readBody(req) {
   if (req.body !== undefined) return typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
   let body = ''; for await (const part of req) body += part;
@@ -41,16 +44,16 @@ http.createServer(async (req, res) => {
     if (path === '/stats' && req.method === 'GET') return reply(200, {requests});
     if (path !== '/v1/images/edits' || req.method !== 'POST') return reply(501, {error: {message: 'Not modeled by this fixture'}});
     const body = await readBody(req);
-    const valid = body.model === 'gpt-image-2.6-flare' && body.n === 1 && body.size === '1024x1024'
-      && body.quality === 'low' && body.output_format === 'png' && body.images?.length === 1
+    const valid = body.model === 'gpt-image-2.6-flare' && body.n === 1 && ['1024x1024', '1536x1024', '1024x1536'].includes(body.size)
+      && ['low', 'medium', 'high'].includes(body.quality) && body.output_format === 'png' && body.images?.length === 1
       && body.images[0].image_url?.startsWith('data:image/png;base64,') && typeof body.prompt === 'string' && body.prompt.length <= 32000;
     const referenceSha256 = valid ? crypto.createHash('sha256').update(Buffer.from(body.images[0].image_url.split(',')[1], 'base64')).digest('hex') : null;
-    requests.push({prompt: body.prompt, valid, mode, referenceSha256});
+    requests.push({prompt: body.prompt, size: body.size, quality: body.quality, valid, mode, referenceSha256});
     if (!valid) return reply(400, {error: {message: 'Invalid image edit contract'}});
     const scenario = mode; mode = 'success';
     if (scenario === 'rate-limit') return reply(429, {error: {message: 'Simulated rate limit'}});
     if (scenario === 'html-error') { res.writeHead(502, {'Content-Type':'text/html'}); return res.end('<h1>Simulated gateway error</h1>'); }
     if (scenario === 'slow') await new Promise(resolve => setTimeout(resolve, 1500));
-    reply(200, {created: 0, data: [{b64_json: png}]});
+    reply(200, {created: 0, data: [{b64_json: image(body.size)}]});
   } catch { if (!res.headersSent) reply(400, {error: {message: 'Invalid test request'}}); }
 }).listen(process.env.PORT || 4500);

@@ -20,6 +20,8 @@ internal partial class GeometryPane : UserControl {
     private readonly Func<IGeometryHost> createHost;
     private readonly TimeSpan? lastSolution;
     private readonly List<GeometryNode> history = new();
+    private readonly List<GeometryCandidate> completedChoices = new();
+    public IReadOnlyList<GeometryCandidate> CompletedChoices => completedChoices;
     private IGeometryHost? host;
     private Button[] cells = Array.Empty<Button>();
     private SpsEngine? engine;
@@ -99,11 +101,12 @@ internal partial class GeometryPane : UserControl {
         if (!NextButton.IsEnabled || selectedCandidate == null) return;
         var candidate = selectedCandidate;
         var existing = history.FirstOrDefault(node => node.ParentId == candidate.SourceNodeId && node.Cell == candidate.Cell);
-        if (existing != null) { RestoreNode(existing); return; }
+        if (existing != null) { RecordChoice(candidate); RestoreNode(existing); return; }
         await RunAsync(async token => {
             pendingParent = candidate.SourceNodeId; pendingCell = candidate.Cell; pendingPrepared = false;
             Status.Text = zoom == 3 ? "Learning preferences and constructing the next plane…" : "Zooming around your selection…";
             await Task.Run(() => engine!.Select(candidate.Cell));
+            RecordChoice(candidate);
             if (++zoom == 4) { zoom = 0; plane++; }
             pendingPrepared = true;
             token.ThrowIfCancellationRequested();
@@ -112,6 +115,15 @@ internal partial class GeometryPane : UserControl {
     }
     private void HandoffClick(object sender, RoutedEventArgs e) {
         if (HandoffButton.IsEnabled && selectedCandidate != null) HandoffRequested?.Invoke(selectedCandidate);
+    }
+    private void RecordChoice(GeometryCandidate candidate) {
+        if (!completedChoices.Any(c => c.Key == candidate.Key)) completedChoices.Add(candidate);
+    }
+    private void ConfirmClick(object sender, RoutedEventArgs e) {
+        if (!ConfirmButton.IsEnabled || selectedCandidate == null) return;
+        RecordChoice(selectedCandidate);
+        Status.Text = "Selection confirmed for final rendering. Choose its source node in History.";
+        UpdateButtons();
     }
     private async Task GenerateAsync(CancellationToken token) {
         PlaneLabel.Text = $"Search plane {plane} · Selection {zoom + 1} of 4";
@@ -221,6 +233,8 @@ internal partial class GeometryPane : UserControl {
         RowsChoice.IsEnabled = ColumnsChoice.IsEnabled = StartButton.IsEnabled;
         bool ready = !busy && !shutdown && !stopped && selectedCandidate != null;
         NextButton.Visibility = HandoffButton.Visibility = FinishButton.Visibility = host != null ? Visibility.Visible : Visibility.Collapsed;
+        ConfirmButton.Visibility = NextButton.Visibility;
+        ConfirmButton.IsEnabled = ready;
         NextButton.IsEnabled = ready;
         HandoffButton.IsEnabled = ready && !peerBusy;
         FinishButton.IsEnabled = !busy && !shutdown && !peerBusy && selectedCandidate != null;
@@ -279,6 +293,7 @@ internal partial class GeometryPane : UserControl {
         released = true; engine?.Dispose(); engine = null;
         foreach (var node in history) node.Snapshot.Dispose();
         history.Clear(); HistoryItems = Array.Empty<HistoryItem>(); activeNodeId = null; selectedCandidate = null;
+        completedChoices.Clear();
         host?.Dispose(); host = null; cancellation?.Dispose(); cancellation = null;
     }
 }

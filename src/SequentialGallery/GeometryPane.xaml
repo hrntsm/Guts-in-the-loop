@@ -21,6 +21,7 @@
     <Button x:Name="CancelButton" Content="Cancel generation" Click="CancelClick" Visibility="Collapsed"/>
     <Button x:Name="RetryButton" Content="Retry" Click="RetryClick" Visibility="Collapsed"/>
     <Button x:Name="NextButton" Content="Next" Click="NextClick" Visibility="Collapsed" IsEnabled="False"/>
+    <Button x:Name="ConfirmButton" Content="Confirm selection" Click="ConfirmClick" Visibility="Collapsed" IsEnabled="False"/>
     <Button x:Name="HandoffButton" Content="Use this shape" Click="HandoffClick" Visibility="Collapsed" IsEnabled="False"/>
     <Button x:Name="FinishButton" Content="Finish geometry only" Click="FinishClick" Visibility="Collapsed" IsEnabled="False"/>
    </WrapPanel>

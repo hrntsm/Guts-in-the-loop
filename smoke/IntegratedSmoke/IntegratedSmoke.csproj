@@ -12,6 +12,7 @@
   <Compile Include="../../src/SequentialGallery/RenderingSession.cs" Link="RenderingSession.cs"/>
   <Compile Include="../../src/SequentialGallery/RenderingPrompts.cs" Link="RenderingPrompts.cs"/>
   <Compile Include="../../src/SequentialGallery/RenderingApi.cs" Link="RenderingApi.cs"/>
+  <Compile Include="../../src/SequentialGallery/FinalRenderingPane.cs" Link="FinalRenderingPane.cs"/>
   <Compile Include="../../src/SequentialGallery/ResultExport.cs" Link="ResultExport.cs"/>
   <Compile Include="../../src/SequentialGallery/IntegratedWindow.xaml.cs" Link="IntegratedWindow.xaml.cs"/>
   <Compile Include="../../src/SequentialGallery/IntegratedHistoryView.xaml.cs" Link="IntegratedHistoryView.xaml.cs"/>

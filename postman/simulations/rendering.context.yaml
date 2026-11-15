@@ -79,6 +79,13 @@ assumptions:
     verification: On dirty 47c866c, RenderingSmoke passed twelve AI-only regression calls plus seven multi-shape calls, and IntegratedSmoke passed four calls covering source A, regenerated A, source B, and the AI-only viewport. Independent review repeated all three pane/integrated smoke suites successfully. A separate real Rhino run made two local stand-in requests and 20 Grasshopper solutions, retaining source A/B explorations and restoring/applying source A values 55,55,55,0.7 on Finish while the left side remained at B. Cached reference hashes and six-file bundle provenance matched the chosen source. Export roots were redirected to ignored build output; no paid requests were made, and model image quality is not established.
     source: smoke/IntegratedSmoke/Program.cs; smoke/RenderingSmoke/Program.cs; postman/mocks/openai-images/default.js; src/SequentialGallery/IntegratedWindow.xaml.cs; src/SequentialGallery/RenderingPane.xaml.cs
     updated_at: '2026-11-14'
+  - id: standalone-final-rendering
+    status: supported
+    claim: Confirmed source choices can be combined independently for a new standalone rendering, and Finish saves the accepted generation snapshot rather than later draft edits.
+    reason: IntegratedSmoke exercised production WPF panes, real SPS, and the HTTP client against the local size-aware stand-in. Assertions compared reference hashes, complete condition vectors, requested dimensions and quality, and saved PNG/text/JSON provenance.
+    verification: On dirty 7b63f9c, the eight-call integrated run passed combined geometry A with conditions from geometry B, duplicate confirmation without advancement, multiple completed-choice disambiguation, custom and default standalone prompt construction, landscape high-quality generation, rejected and cancelled regeneration retaining the prior preview, save failure/retry, and portrait medium-quality AI-only completion. RenderingSmoke also passed twelve AI-only and seven multi-shape regression HTTP calls with the new confirmation action. A real Rhino run completed 11 solutions and two mock requests in 25.4 seconds, verifying latest-grid confirmation, cross-source A/B pairing, A reference hashes, full landscape/high output, accepted-snapshot export after unsent edits, and exact A slider restoration to 55,55,55,0.7. Slider metadata, wiring, existing Fillet Edge errors, and sample hashes were preserved. Exports were overridden to ignored build output; Desktop redirection and physical mouse interaction were not tested. No paid request was made; synthetic outputs establish request/state correctness rather than real-model fidelity.
+    source: smoke/IntegratedSmoke/Program.cs; src/SequentialGallery/FinalRenderingPane.cs; postman/mocks/openai-images/default.js; ignored build/evidence/rhino-final.txt
+    updated_at: '2026-11-14'
 fingerprints:
   - id: initial-rendering
     date: '2026-11-14'
@@ -109,3 +116,8 @@ fingerprints:
     commit: 47c866c
     cli: 1.75.0
     notes: Dirty tree with unified component, geometry and rendering panes, retained per-shape runs, connected History and source-aware Finish.
+  - id: standalone-final-rendering
+    date: '2026-11-14'
+    commit: 7b63f9c
+    cli: 1.75.0
+    notes: Dirty tree with completed-choice confirmation, independent History pair selection, editable full final prompt, configurable standalone generation, and accepted-snapshot export.
