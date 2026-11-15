@@ -28,6 +28,9 @@ A separate Grasshopper component for exploring the rendering atmosphere of a fix
 **Rendering reference image**:
 The single capture of the active Rhino viewport taken when the user starts an AI rendering session. It remains fixed throughout that session and is the reference for every generated matrix.
 
+**Initial prompt**:
+The shared scene instructions entered before an AI rendering session starts, such as preserving the storey count or omitting viewport grid lines. The text stays fixed across all candidate matrices and takes priority over conflicting atmosphere instructions without becoming a search variable.
+
 **Rendering search session**:
 An independent SPS exploration over two through seven selected rendering variables, including the available Season variable, using 2x zoom and a plane update after four committed selections. Its gallery axes represent SPS coordinates and need not correspond to individual variables.
 

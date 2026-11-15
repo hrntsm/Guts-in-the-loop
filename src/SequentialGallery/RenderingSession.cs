@@ -17,6 +17,8 @@ internal sealed record RenderingVariable(string Name, string[] Anchors) {
 internal sealed record RenderingBatch(string Prompt, double[][] Values, bool[] Valid, int Plane, int SelectionStage);
 
 internal sealed class RenderingSession : IDisposable {
+    public const int InitialPromptLimit = 2000;
+    public const string DefaultInitialPrompt = "Preserve the building's number of storeys, overall massing, roof shape, and opening layout. Do not add storeys. Remove Rhino viewport grid lines, axes, selection highlighting, and other CAD overlays.";
     public static readonly RenderingVariable[] Variables = {
         new("TimeOfDay", new[] { "Early morning", "Midday", "Night" }),
         new("RenderingStyle", new[] { "Pencil/line sketch", "Watercolor", "Architectural illustration", "Detailed CGI", "Photorealistic" }),
@@ -31,17 +33,21 @@ internal sealed class RenderingSession : IDisposable {
     private int plane = 1, zoom;
     public int Rows { get; }
     public int Columns { get; }
+    public string InitialPrompt { get; }
     public RenderingBatch? Displayed { get; private set; }
     public RenderingBatch? Pending { get; private set; }
     public bool Faulted { get; private set; }
 
-    public RenderingSession(int rows, int columns, int[] variableIndices) {
+    public RenderingSession(int rows, int columns, int[] variableIndices, string initialPrompt = DefaultInitialPrompt) {
         if (variableIndices.Length < 2 || variableIndices.Length > Variables.Length
             || variableIndices.Distinct().Count() != variableIndices.Length
             || variableIndices.Any(i => i < 0 || i >= Variables.Length))
             throw new ArgumentException("Select at least two different rendering variables.");
+        if (initialPrompt.Length > InitialPromptLimit)
+            throw new ArgumentException($"Initial prompt must be at most {InitialPromptLimit} characters.");
         Rows = rows;
         Columns = columns;
+        InitialPrompt = initialPrompt.Trim();
         this.variableIndices = (int[])variableIndices.Clone();
         engine = new SpsEngine(variableIndices.Length, rows, columns);
         try { Pending = BuildBatch(); }
@@ -70,7 +76,11 @@ internal sealed class RenderingSession : IDisposable {
         var valid = grid.Select(values => values.All(v => double.IsFinite(v) && v >= 0 && v <= 1)).ToArray();
         var prompt = new StringBuilder();
         prompt.AppendLine($"Create ONE square image, an exact {Rows}-row by {Columns}-column contact sheet of architectural renderings.");
-        prompt.AppendLine("Use the supplied facade reference in every valid cell. Preserve its building geometry, camera and composition; atmosphere comparison matters more than exact detail. All cells must be equal rectangles, edge-to-edge, with no outer margin or gutters. Do not draw text, labels or numbers. Conditions below are indexed top-to-bottom, left-to-right; indices are instructions only. Keep every cell in its specified position. Blend neighboring descriptions by the given weights; do not blend between cells. Season and weather are independent.");
+        prompt.AppendLine("Use the supplied facade reference in every valid cell. Preserve its building geometry, camera and composition. All cells must be equal rectangles, edge-to-edge, with no outer margin or gutters. Do not draw text, labels or numbers. Conditions below are indexed top-to-bottom, left-to-right; indices are instructions only. Keep every cell in its specified position. Blend neighboring descriptions by the given weights; do not blend between cells. Season and weather are independent.");
+        if (InitialPrompt.Length > 0) {
+            prompt.AppendLine("Fixed scene instructions apply unchanged to EVERY valid cell and every iteration. They take priority over conflicting atmosphere conditions; vary only aspects not explicitly fixed. The matrix layout and no-label requirements above still apply.");
+            prompt.AppendLine("[Fixed scene instructions]").AppendLine(InitialPrompt).AppendLine("[/Fixed scene instructions]");
+        }
         const string keys = "TDWCAVS";
         prompt.AppendLine("Cell keys: " + string.Join("; ", variableIndices.Select(i => $"{keys[i]}={Variables[i].Name}")));
         foreach (int i in Enumerable.Range(0, Variables.Length).Except(variableIndices))

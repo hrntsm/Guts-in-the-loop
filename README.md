@@ -52,13 +52,15 @@ Add **Params > Util > AI Rendering** as a separate component. It has no slider i
 
 1. Double-click **AI Rendering** to open setup. No image request or capture runs yet.
 2. Select at least two of the seven atmosphere variables, including Season and RenderingStyle with watercolor. Unchecked variables stay at 0.5.
-3. Choose rows and columns from 3, 5, 7, or 9 (default: 5x5), frame the active Rhino viewport, and press **Start rendering exploration**.
+3. Choose rows and columns from 3, 5, 7, or 9 (default: 5x5). Edit **Initial prompt** to specify scene constraints that must remain fixed, frame the active Rhino viewport, and press **Start rendering exploration**.
 4. The component captures that viewport once and sends one OpenAI image-edit request for the entire matrix, using `gpt-image-2.6-flare`, `1024x1024`, and `low` quality. Every subsequent request uses the original capture.
 5. Click a valid cell to highlight it. **Next** commits that preference and generates another matrix. Four committed selections update the SPS plane. A new image clears the highlighted selection.
 6. **Regenerate** requests another image of the same conditions without advancing SPS. Use it when the generated layout does not match the equal-cell overlay. Out-of-range cells remain covered and cannot be selected.
 7. **Finish** crops the highlighted cell into a final preview. **Save PNG** saves only that original crop at a chosen path; it does not generate a new image or upscale it. A 5x5 matrix gives approximately 205x205 pixels per crop.
 
 Failed requests keep the previous image and offer **Retry**, reusing the pending conditions without another SPS selection. **Cancel generation** stops local waiting and ignores late responses, preserving conditions for Retry. It does not guarantee remote cancellation or a refund of API usage. **Close** ends the session. Requests time out after five minutes; retries and regenerations are always manual. The window displays elapsed request time rather than estimating AI latency from Grasshopper computation.
+
+**Initial prompt** is a multiline setup field (up to 2000 characters), frozen on Start and included unchanged in every Next, Retry, and Regenerate request. It defines shared scene constraints that take priority over conflicting atmosphere conditions while preserving the matrix format. The default asks to preserve the building's storey count, massing, roof, and openings and to omit Rhino grid lines, axes, selection highlighting, and CAD overlays. For a particular design, add an explicit instruction such as `Keep the building single-storey. Do not add a second floor.` These are model instructions, not guarantees of exact image compliance. To change them, close and start a new rendering session.
 
 ## Supplied sample
 

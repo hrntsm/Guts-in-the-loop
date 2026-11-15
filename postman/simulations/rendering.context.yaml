@@ -37,6 +37,13 @@ assumptions:
     verification: No provider billing or remote cancellation guarantee assumed.
     source: spec.md section 17.6
     updated_at: '2026-11-14'
+  - id: fixed-scene-instructions
+    status: supported
+    claim: In the exercised caller flow, the Initial prompt captured on Start was included unchanged in every subsequent matrix request and remained outside the SPS coordinates.
+    reason: The production WPF smoke test edited the setup text, started a session, changed the hidden textbox programmatically, and checked all ten actual HTTP prompts.
+    verification: Initial, Next, Retry, Regenerate, and cancellation/retry requests retained the original single-storey and no-grid instructions. Supported grids up to 9x9 with seven variables and 2000 input characters remained under the API prompt limit. This proves request construction, not AI obedience to scene constraints.
+    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingSession.cs
+    updated_at: '2026-11-14'
 fingerprints:
   - id: initial-rendering
     date: '2026-11-14'

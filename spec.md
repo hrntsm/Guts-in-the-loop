@@ -580,6 +580,8 @@ Confirmed rendering domain: 0-1 is the complete supported semantic range for eac
 
 ### 17.3 Reference image and geometry
 
+The setup screen includes an optional multiline `Initial prompt` field with a 2000-character limit. Its default instructions preserve the building's storey count, massing, roof shape, and opening layout and omit Rhino viewport grid lines, axes, selection highlighting, and other CAD overlays. Users can add design-specific constraints such as keeping a building single-storey; the default does not assume every building has one storey. Freeze the text on Start and include it unchanged in every matrix request, including Next, Retry, and Regenerate. The instructions apply to all valid cells and take priority over conflicting atmosphere conditions; the matrix layout and no-label format requirements remain in force. Do not turn this text into an SPS variable. It is a prompt-level constraint and does not establish guaranteed AI compliance. Changing it requires a new session.
+
 On Start, capture the active Rhino viewport once and retain that image throughout rendering exploration. Opening setup does not capture an image or start generation; users can frame the model before Start. Use this same original capture as the reference for every matrix request, even if the live viewport later changes. File-image input is outside the current scope. Do not change Number Sliders during rendering exploration. Share the SPS implementation, not the geometry session's preference or zoom state.
 
 The normal geometry finish continues to reapply the last selected slider values and close the window. Do not add an automatic transition or direct image handoff to the rendering component in this scope. A future integrated workflow may add that connection.
@@ -685,6 +687,7 @@ The implementation covers the following criteria. Automated WPF checks use the r
 - [x] Cancel generation without closing the session, retain the last successful image and pending conditions for Retry, and ignore late responses from cancelled requests.
 - [x] Keep the facade reference fixed and leave Number Sliders unchanged during rendering exploration.
 - [x] Capture the active Rhino viewport once on Start and reuse that image for every matrix request in the session.
+- [x] Configure fixed scene constraints through Initial prompt before Start and reuse the captured text unchanged for all matrix requests, outside the SPS variables.
 - [x] Open rendering setup and exploration from a separate Grasshopper component, preserving the geometry component's existing finish behavior.
 
 Success means users can choose rendering variables and interactively explore their visual atmosphere by selecting cells in AI-generated matrices.

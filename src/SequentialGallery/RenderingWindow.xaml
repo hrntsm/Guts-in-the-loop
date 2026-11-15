@@ -39,7 +39,8 @@
    </WrapPanel>
   </StackPanel>
   <Grid>
-   <StackPanel x:Name="SetupPanel" MaxWidth="760" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16">
+   <ScrollViewer x:Name="SetupPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+   <StackPanel MaxWidth="760" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16">
     <TextBlock Text="Rendering atmosphere" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
     <TextBlock Text="Checked variables are explored; unchecked variables stay at 0.5." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,0,0,12"/>
     <StackPanel x:Name="VariableOptions"/>
@@ -54,9 +55,14 @@
      </ComboBox>
      <TextBlock x:Name="GridSummary" VerticalAlignment="Center" Margin="16,0"/>
     </WrapPanel>
+    <TextBlock Text="Initial prompt" FontWeight="SemiBold" Margin="0,8,0,6"/>
+    <TextBox x:Name="InitialPrompt" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+     MinHeight="88" MaxHeight="130" MaxLength="2000" Padding="8" Background="#222B36" Foreground="White" BorderBrush="#526174"/>
+    <TextBlock Text="Fixed scene instructions for every candidate and iteration. Example: Keep the building single-storey. Do not show the Rhino viewport grid or axes. Up to 2000 characters; frozen on Start." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,6,0,12"/>
     <TextBlock Text="Start captures the active Rhino viewport once. The reference stays fixed; sliders are never changed. One API request creates the complete matrix at 1024×1024, low quality." TextWrapping="Wrap" Foreground="#AAB8C8"/>
     <Button x:Name="StartButton" Content="Start rendering exploration" Click="StartClick" HorizontalAlignment="Left" Margin="0,16,0,0"/>
    </StackPanel>
+   </ScrollViewer>
    <Viewbox x:Name="MatrixView" Visibility="Collapsed" Stretch="Uniform">
     <Grid Width="1024" Height="1024" Background="#222B36">
      <Image x:Name="MatrixImage" Stretch="Fill"/>

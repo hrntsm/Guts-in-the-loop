@@ -33,6 +33,7 @@ internal partial class RenderingWindow : Window {
         this.captureReference = captureReference;
         this.createApi = createApi ?? (() => new RenderingApi(Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? ""));
         InitializeComponent();
+        InitialPrompt.Text = RenderingSession.DefaultInitialPrompt;
         variables = RenderingSession.Variables.Select(variable => {
             var option = new CheckBox {
                 Content = $"{variable.Name}   ·   {variable.Anchors[0]} → {variable.Anchors[^1]}",
@@ -72,6 +73,7 @@ internal partial class RenderingWindow : Window {
         BusyProgress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         foreach (var variable in variables) variable.IsEnabled = ready && session == null;
         RowsChoice.IsEnabled = ColumnsChoice.IsEnabled = ready && session == null;
+        InitialPrompt.IsReadOnly = busy || session != null || final;
         for (int i = 0; i < cells.Length; i++) {
             bool valid = session?.Displayed?.Valid[i] == true;
             cells[i].IsEnabled = canExplore && valid;
@@ -84,12 +86,13 @@ internal partial class RenderingWindow : Window {
     private async void StartClick(object sender, RoutedEventArgs e) {
         if (busy || session != null || variables.Count(v => v.IsChecked == true) < 2) return;
         int rows = Rows, columns = Columns;
+        string initialPrompt = InitialPrompt.Text;
         int[] indices = variables.Select((v, i) => (v, i)).Where(x => x.v.IsChecked == true).Select(x => x.i).ToArray();
         await RunAsync(async token => {
             activity = "Initializing rendering exploration";
             api = createApi();
             reference = captureReference();
-            session = await Task.Run(() => new RenderingSession(rows, columns, indices));
+            session = await Task.Run(() => new RenderingSession(rows, columns, indices, initialPrompt));
             if (closed) token.ThrowIfCancellationRequested();
             SetupPanel.Visibility = Visibility.Collapsed;
             MatrixView.Visibility = VariableSummary.Visibility = Visibility.Visible;

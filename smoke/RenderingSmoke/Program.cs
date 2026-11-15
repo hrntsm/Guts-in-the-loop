@@ -34,6 +34,8 @@ internal static class Program {
                     : () => new RenderingApi("simulation-only", new Uri("http://localhost:4900/openai/v1/images/edits")));
                 window.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
                 Require(captures == 0 && Field<RenderingSession?>(window, "session") == null, "Opening setup must stay idle.");
+                const string fixedScene = "Keep the building single-storey. Do not draw the Rhino viewport grid or axes.";
+                if (!live) ((TextBox)window.FindName("InitialPrompt")).Text = fixedScene;
                 Capture(window, "build/evidence/rendering-setup.png");
                 Click(window, "StartButton"); await Wait(window);
                 Require(captures == 1, "Reference must be captured once.");
@@ -42,10 +44,13 @@ internal static class Program {
                 Require(((FrameworkElement)window.FindName("SetupPanel")).Visibility == Visibility.Collapsed, "Setup must disappear.");
                 Require(session.Displayed!.Valid.Length == 25 && session.Displayed.Values.All(v => v.Length == 7), "Default grid must map 25 seven-variable conditions.");
                 if (!live) {
+                    Require(session.InitialPrompt == fixedScene && session.Displayed.Prompt.Contains(fixedScene), "Initial prompt must be captured and sent in the first matrix request.");
+                    Require(((TextBox)window.FindName("InitialPrompt")).IsReadOnly, "Initial prompt must be frozen after Start.");
+                    ((TextBox)window.FindName("InitialPrompt")).Text = "Do not use this changed text in the running session.";
                     Require(RenderingSession.Variables[1].Describe(.25) == "Watercolor", "Watercolor anchor must be distinct.");
                     Require(RenderingSession.Variables[6].Describe(.5).Contains("Summer") && RenderingSession.Variables[6].Describe(.5).Contains("Autumn"), "Season midpoint must blend summer/autumn.");
                     foreach (int size in new[] {3,5,7,9}) {
-                        using var large = new RenderingSession(size, 9, Enumerable.Range(0, 7).ToArray());
+                        using var large = new RenderingSession(size, 9, Enumerable.Range(0, 7).ToArray(), new string('x', RenderingSession.InitialPromptLimit));
                         Require(large.Pending!.Prompt.Length <= 32000, "Supported grids must fit API prompt limits.");
                     }
                     using var subset = new RenderingSession(3, 7, new[] {0,1});
@@ -80,6 +85,8 @@ internal static class Program {
                     using var stats = await JsonDocument.ParseAsync(await control.GetStreamAsync("stats"));
                     var requests = stats.RootElement.GetProperty("requests");
                     Require(requests.EnumerateArray().All(r => r.GetProperty("valid").GetBoolean()), "Every request must match the image edit contract.");
+                    Require(requests.EnumerateArray().Skip(priorRequests).All(r => r.GetProperty("prompt").GetString()!.Contains(fixedScene)
+                        && !r.GetProperty("prompt").GetString()!.Contains("Do not use this changed text")), "Initial instructions must stay unchanged through Next, Retry, Regenerate, and cancellation.");
                     Require(requests[priorRequests + 1].GetProperty("prompt").GetString() == requests[priorRequests + 2].GetProperty("prompt").GetString(), "HTTP retry must preserve exact prompt.");
                     Console.WriteLine($"PASS: {requests.GetArrayLength() - priorRequests} real HTTP calls through the Postman stand-in; 429, HTML 502, cancellation, Retry, Regenerate, and plane update outcomes verified.");
                 }
