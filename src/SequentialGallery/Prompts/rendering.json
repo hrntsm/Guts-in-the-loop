@@ -1,0 +1,77 @@
+{
+  "defaultInitialPrompt": "Preserve the building's number of storeys, overall massing, roof shape, and opening layout. Do not add storeys. Remove Rhino viewport grid lines, axes, selection highlighting, and other CAD overlays.",
+  "layout": "Create ONE square image, an exact {rows}-row by {columns}-column contact sheet of architectural renderings.",
+  "sceneRules": "Use the supplied facade reference in every valid cell. Preserve its building geometry, camera and composition. All cells must be equal rectangles, edge-to-edge, with no outer margin or gutters. Do not draw text, labels or numbers. Conditions are indexed top-to-bottom, left-to-right; indices and anchor codes are instructions only. Keep every cell in its specified position. Resolve anchor codes using the definitions below. Blend neighboring descriptions by the given weights within each cell; do not blend between cells.",
+  "fixedSceneRules": "Fixed scene instructions apply unchanged to EVERY valid cell and every iteration. They take priority over conflicting atmosphere conditions; vary only aspects not explicitly fixed. The matrix layout and no-label requirements above still apply.",
+  "interactionRules": "TimeOfDay sets the time; Weather modifies clouds, shadow softness, precipitation and ground conditions consistently with that time. Clear weather at night must not introduce sunlight. Season controls foliage appearance and precipitation type, not the number or placement of plants; Vegetation controls planting quantity. Winter alone does not request snowfall or snow cover. For precipitation, spring through autumn use rain; autumn to winter transitions continuously from rain through sleet to snow. A weighted rain/snow mixture means sleet or mixed precipitation. Preserve the building outline, windows and entrances even in heavy precipitation, abundant planting or high activity. Do not add event equipment, change building use, or add green walls or green roofs. Evergreen trees retain their foliage in winter. With almost no planting, seasonal differences may be subtle; do not add plants solely to show a season. Express atmosphere through the selected rendering medium: monochrome pencil linework remains monochrome, with lighting suggested through line density rather than colored or painted fills.",
+  "blankCell": "Blank neutral placeholder. No rendering.",
+  "rain": "rain",
+  "snow": "snow",
+  "variables": [
+    {
+      "name": "TimeOfDay", "label": "Time", "key": "T",
+      "anchors": ["Early morning", "Mid-morning", "Noon", "Twilight", "Night"],
+      "descriptions": [
+        "Early morning immediately after dawn. Low morning sun, a pale blue-to-orange sky, and soft light.",
+        "Mid-morning. Bright, clear light with sunlight arriving at a moderately oblique angle.",
+        "Around noon. High sun with bright, even illumination.",
+        "Twilight immediately after sunset, during magic hour. A crimson-to-deep-blue sky; interior lights begin to glow.",
+        "Night. A dark sky, illuminated interiors and landscape lighting, with warm light spilling through the windows."
+      ]
+    },
+    {
+      "name": "RenderingStyle", "label": "Style", "key": "D",
+      "anchors": ["Pencil sketch", "Light watercolor sketch", "Architectural illustration", "Architectural CGI", "Photorealistic photograph"],
+      "descriptions": [
+        "Hand-drawn architectural pencil sketch. Monochrome linework only, with visible paper texture.",
+        "Light watercolor architectural sketch. Hand-drawn linework with pale, translucent watercolor washes.",
+        "Architectural illustration with shading, color, and a painterly touch.",
+        "Architectural CGI visualization. Orderly materials and lighting, with a visibly computer-generated finish.",
+        "Photorealistic architectural photograph, indistinguishable from a real photograph."
+      ]
+    },
+    {
+      "name": "Weather", "label": "Weather", "key": "W",
+      "anchors": ["Clear", "Thin clouds", "Overcast", "Light precipitation", "Heavy precipitation"],
+      "descriptions": [
+        "Clear sky, direct light and well-defined shadows where appropriate to the time of day, with dry ground.",
+        "Thin cloud cover with slightly softened light and shadows; no precipitation.",
+        "Overcast sky with thick clouds, diffuse light and weak shadows, without precipitation.",
+        "Light precipitation: fine rain streaks and wet pavement, or sparse snowflakes and a thin covering of snow, according to the cell's precipitation type.",
+        "Heavy precipitation: clearly visible rain streaks and reflective wet pavement, or dense snowflakes and snow accumulating on the ground, according to the cell's precipitation type. Keep the architecture clearly visible."
+      ]
+    },
+    {
+      "name": "Activity", "label": "Activity", "key": "A",
+      "anchors": ["Empty", "A few people", "Moderate activity", "Many people", "Lively"],
+      "descriptions": [
+        "An empty, quiet architectural setting with no people.",
+        "A few widely spaced people walking calmly; the setting remains quiet.",
+        "Moderate pedestrian activity, with people walking and a few small groups conversing.",
+        "Many people walking and conversing in small groups, creating a visibly active setting.",
+        "A lively, well-attended setting with frequent pedestrian movement and multiple small conversational groups. Do not obscure the building with crowds."
+      ]
+    },
+    {
+      "name": "Vegetation", "label": "Plants", "key": "V",
+      "anchors": ["Almost none", "Sparse planting", "Moderate planting", "Rich planting", "Abundant planting"],
+      "descriptions": [
+        "Almost no planting in the surrounding grounds; predominantly open, unplanted surfaces.",
+        "Sparse, isolated patches of groundcover and low planting, with occasional shrubs or trees.",
+        "A moderate amount of groundcover, low planting, shrubs, and trees in the surrounding grounds.",
+        "Richly planted grounds with extensive low planting, shrubs, and more trees.",
+        "Abundant layered planting and trees surrounding the building, creating a richly landscaped setting. Foliage follows Season; winter abundance does not imply green deciduous leaves."
+      ]
+    },
+    {
+      "name": "Season", "label": "Season", "key": "S",
+      "anchors": ["Spring", "Summer", "Autumn", "Winter"],
+      "descriptions": [
+        "Spring: bright young leaves, budding vegetation, and restrained blossoms in some planted areas.",
+        "Summer: deep green mature foliage and full leafy tree canopies.",
+        "Autumn: yellow, orange, and red deciduous foliage, with fallen leaves scattered on the ground.",
+        "Winter: bare deciduous branches and dormant grass and shrubs; evergreen trees retain their foliage. No snow unless Weather requests precipitation."
+      ]
+    }
+  ]
+}

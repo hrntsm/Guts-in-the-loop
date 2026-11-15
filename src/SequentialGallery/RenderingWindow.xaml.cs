@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -24,6 +25,11 @@ internal partial class RenderingWindow : Window {
     private RenderingApi? api;
     private byte[]? reference;
     private BitmapSource? displayedImage, finalCrop;
+    private RenderingBatch? displayedBatch, inspectorBatch;
+    private string frozenInitialPrompt = "";
+    private int[] exploredVariables = Array.Empty<int>();
+    private bool showingPrompt;
+    private Button[] promptCells = Array.Empty<Button>();
     private CancellationTokenSource? cancellation;
     private bool busy, closed, final;
     private int selected = -1;
@@ -74,6 +80,7 @@ internal partial class RenderingWindow : Window {
         foreach (var variable in variables) variable.IsEnabled = ready && session == null;
         RowsChoice.IsEnabled = ColumnsChoice.IsEnabled = ready && session == null;
         InitialPrompt.IsReadOnly = busy || session != null || final;
+        ShowPromptButton.IsEnabled = displayedBatch != null || session?.Pending != null;
         for (int i = 0; i < cells.Length; i++) {
             bool valid = session?.Displayed?.Valid[i] == true;
             cells[i].IsEnabled = canExplore && valid;
@@ -82,6 +89,7 @@ internal partial class RenderingWindow : Window {
             cells[i].BorderBrush = i == selected ? Brushes.Orange : new SolidColorBrush(Color.FromArgb(150, 255, 255, 255));
             cells[i].BorderThickness = new Thickness(i == selected ? 6 : 1);
         }
+        UpdatePromptInspector();
     }
     private async void StartClick(object sender, RoutedEventArgs e) {
         if (busy || session != null || variables.Count(v => v.IsChecked == true) < 2) return;
@@ -94,15 +102,17 @@ internal partial class RenderingWindow : Window {
             reference = captureReference();
             session = await Task.Run(() => new RenderingSession(rows, columns, indices, initialPrompt));
             if (closed) token.ThrowIfCancellationRequested();
+            frozenInitialPrompt = session.InitialPrompt;
+            exploredVariables = indices;
             SetupPanel.Visibility = Visibility.Collapsed;
-            MatrixView.Visibility = VariableSummary.Visibility = Visibility.Visible;
+            RenderingLayout.Visibility = MatrixView.Visibility = VariableSummary.Visibility = ShowPromptButton.Visibility = Visibility.Visible;
             NextButton.Visibility = RegenerateButton.Visibility = FinishButton.Visibility = Visibility.Visible;
             VariableSummary.Text = string.Join(" · ", indices.Select(i => RenderingSession.Variables[i].Name));
             CellOverlay.Rows = rows;
             CellOverlay.Columns = columns;
             cells = Enumerable.Range(0, rows * columns).Select(i => {
                 var cell = new Button { Style = (Style)FindResource("CellStyle"), IsEnabled = false, ToolTip = $"Row {i / columns + 1}, column {i % columns + 1}" };
-                cell.Click += (_, _) => { selected = i; UpdateControls(); };
+                cell.Click += (_, _) => SelectCell(i);
                 CellOverlay.Children.Add(cell);
                 return cell;
             }).ToArray();
@@ -132,6 +142,7 @@ internal partial class RenderingWindow : Window {
     }
     private async Task GenerateAsync(CancellationToken token) {
         var pending = session!.Pending ?? throw new InvalidOperationException("No generation is pending.");
+        UpdateControls();
         activity = "Generating matrix";
         var bytes = await api!.GenerateAsync(reference!, pending.Prompt, token).WaitAsync(token);
         token.ThrowIfCancellationRequested();
@@ -139,11 +150,92 @@ internal partial class RenderingWindow : Window {
         if (image.PixelWidth != 1024 || image.PixelHeight != 1024)
             throw new InvalidOperationException("The API returned an unexpected image size. Expected 1024x1024. Retry the same conditions.");
         session.Accept(pending);
+        displayedBatch = pending;
         displayedImage = image;
         MatrixImage.Source = image;
         selected = -1;
+        PromptValueScroll.ScrollToTop();
+        PromptValueScroll.ScrollToHorizontalOffset(0);
         StageLabel.Text = $"Search plane {pending.Plane} · Selection {pending.SelectionStage} of 4";
         Status.Text = $"Ready · {pending.Valid.Count(v => v)} valid cells · {elapsed.Elapsed.TotalSeconds:F1}s. Select a cell, then Next or Finish. Use Regenerate if the layout is unsuitable.";
+    }
+    private void SelectCell(int index) {
+        if (busy || final || session?.Pending != null || session?.Faulted != false || session.Displayed == null
+            || index < 0 || index >= session.Displayed.Valid.Length || !session.Displayed.Valid[index]) return;
+        selected = index;
+        UpdateControls();
+    }
+    private void ShowPromptClick(object sender, RoutedEventArgs e) {
+        showingPrompt = !showingPrompt;
+        PromptPanel.Visibility = PromptSplitter.Visibility = showingPrompt ? Visibility.Visible : Visibility.Collapsed;
+        PromptColumn.MinWidth = showingPrompt ? 300 : 0;
+        PromptColumn.Width = showingPrompt ? new GridLength(3, GridUnitType.Star) : new GridLength(0);
+        PromptGutter.Width = new GridLength(showingPrompt ? 10 : 0);
+        ShowPromptButton.Content = showingPrompt ? "Hide Prompt" : "Show Prompt";
+        UpdatePromptInspector();
+    }
+    private void UpdatePromptInspector() {
+        if (!showingPrompt) return;
+        var batch = displayedBatch ?? session?.Pending;
+        if (batch == null) return;
+        PromptContext.Text = displayedBatch == null
+            ? $"Pending request · search plane {batch.Plane}, selection {batch.SelectionStage}. No image is available yet."
+            : $"Displayed image · search plane {batch.Plane}, selection {batch.SelectionStage}."
+                + (session?.Pending != null ? " A generation is pending; these values still match the image on the left." : "");
+        if (!ReferenceEquals(inspectorBatch, batch)) {
+            InspectorInitialPrompt.Text = frozenInitialPrompt.Length == 0 ? "(No initial prompt)" : frozenInitialPrompt;
+            FullPrompt.Text = batch.Prompt;
+            int columns = session?.Columns ?? CellOverlay.Columns;
+            PromptValueGrid.Rows = session?.Rows ?? CellOverlay.Rows;
+            PromptValueGrid.Columns = columns;
+            PromptValueGrid.MinWidth = columns * 90;
+            PromptValueGrid.MinHeight = PromptValueGrid.Rows * 130;
+            PromptValueGrid.Children.Clear();
+            promptCells = Enumerable.Range(0, batch.Values.Length).Select(i => {
+                var content = new StackPanel();
+                content.Children.Add(new TextBlock { Text = $"R{i / columns + 1} C{i % columns + 1}", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+                if (!batch.Valid[i]) content.Children.Add(new TextBlock { Text = "Out of range", Foreground = Brushes.LightSalmon, FontSize = 9 });
+                for (int j = 0; j < RenderingSession.Variables.Length; j++) {
+                    var line = new Grid();
+                    line.ColumnDefinitions.Add(new ColumnDefinition());
+                    line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    line.Children.Add(new TextBlock { Text = RenderingSession.Variables[j].Label, Foreground = Brushes.LightSteelBlue, Margin = new Thickness(0, 0, 3, 0) });
+                    var value = new TextBlock { Text = batch.Values[i][j].ToString("G4", CultureInfo.InvariantCulture) };
+                    Grid.SetColumn(value, 1); line.Children.Add(value); content.Children.Add(line);
+                }
+                var tile = new Button {
+                    Content = content, ToolTip = DescribeCell(batch, i), Style = (Style)FindResource("CellStyle"),
+                    MinWidth = 88, MinHeight = 128, Margin = new Thickness(1), Padding = new Thickness(4), FontSize = 11,
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Top
+                };
+                ToolTipService.SetShowOnDisabled(tile, true);
+                tile.Click += (_, _) => SelectCell(i);
+                PromptValueGrid.Children.Add(tile);
+                return tile;
+            }).ToArray();
+            inspectorBatch = batch;
+        }
+        bool canSelect = !busy && !final && session?.Pending == null && session?.Faulted == false;
+        for (int i = 0; i < promptCells.Length; i++) {
+            promptCells[i].IsEnabled = canSelect && batch.Valid[i];
+            promptCells[i].Background = new SolidColorBrush(batch.Valid[i] ? Color.FromRgb(34, 43, 54) : Color.FromRgb(25, 30, 38));
+            promptCells[i].BorderBrush = i == selected ? Brushes.Orange : Brushes.SlateGray;
+            promptCells[i].BorderThickness = new Thickness(i == selected ? 3 : 1);
+        }
+        SelectedCellValues.Text = selected < 0 ? "Select a valid box on the image or value grid to inspect its exact values and prompt descriptions." : DescribeCell(batch, selected);
+        if (selected >= 0) promptCells[selected].BringIntoView();
+    }
+    private string DescribeCell(RenderingBatch batch, int index) {
+        int columns = session?.Columns ?? CellOverlay.Columns;
+        var details = new System.Text.StringBuilder($"Row {index / columns + 1}, column {index % columns + 1}\n");
+        for (int j = 0; j < RenderingSession.Variables.Length; j++) {
+            double value = batch.Values[index][j];
+            var variable = RenderingSession.Variables[j];
+            details.Append(variable.Name).Append(": ").Append(value.ToString("G17", CultureInfo.InvariantCulture));
+            if (!exploredVariables.Contains(j)) details.Append(" (fixed)");
+            details.Append(" · ").AppendLine(batch.Valid[index] ? RenderingSession.DescribeValue(batch.Values[index], j) : "Out of range");
+        }
+        return details.ToString();
     }
     private async Task RunAsync(Func<CancellationToken, Task> operation) {
         if (busy || closed || final) return;

@@ -10,6 +10,7 @@
     <RhinoInstallDir Condition="'$(RhinoInstallDir)' == ''">C:\Program Files\Rhino 8</RhinoInstallDir>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Prompts\rendering.json" LogicalName="SequentialGallery.RenderingPrompts.json" />
     <EmbeddedResource Include="Resources\Gallery.png" LogicalName="SequentialGallery.Gallery.png" />
     <EmbeddedResource Include="Resources\Rendering.png" LogicalName="SequentialGallery.Rendering.png" />
     <Reference Include="RhinoCommon"><HintPath>$(RhinoInstallDir)\System\RhinoCommon.dll</HintPath><Private>false</Private></Reference>

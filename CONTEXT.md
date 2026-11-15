@@ -32,7 +32,7 @@ The single capture of the active Rhino viewport taken when the user starts an AI
 The shared scene instructions entered before an AI rendering session starts, such as preserving the storey count or omitting viewport grid lines. The text stays fixed across all candidate matrices and takes priority over conflicting atmosphere instructions without becoming a search variable.
 
 **Rendering search session**:
-An independent SPS exploration over two through seven selected rendering variables, including the available Season variable, using 2x zoom and a plane update after four committed selections. Its gallery axes represent SPS coordinates and need not correspond to individual variables.
+An independent SPS exploration over two through six selected rendering variables (TimeOfDay, RenderingStyle, Weather, Activity, Vegetation, and Season), using 2x zoom and a plane update after four committed selections. Its gallery axes represent SPS coordinates and need not correspond to individual variables.
 
 **Rendering matrix**:
 A single AI-generated image containing the candidate cells for one rendering search step. It uses the session's gallery grid, defaulting to 5x5 with rows and columns independently chosen from 3, 5, 7, or 9 before Start.
@@ -44,10 +44,16 @@ The currently highlighted cell and its associated parameter vector in the displa
 A rendering matrix slot whose SPS vector contains a non-finite value or a variable outside its defined 0-1 semantic range. The slot stays in place, is covered by an `Out of range` overlay, and cannot be selected.
 
 **RenderingStyle**:
-The rendering variable ordered from pencil / line-art sketch (0), through watercolor (0.25), architectural illustration (0.5), and detailed CGI (0.75), to photorealistic imagery (1). Intermediate values describe weighted blends of neighboring styles while remaining continuous SPS coordinates.
+The rendering variable ordered from monochrome pencil linework on textured paper (0), through lightly watercolor-tinted hand-drawn sketch (0.25), painterly architectural illustration (0.5), and recognizably computer-generated architectural visualization (0.75), to photorealistic architectural photography (1). Intermediate values describe weighted blends of neighboring styles while remaining continuous SPS coordinates.
+
+**TimeOfDay**:
+The rendering variable ordered from just after dawn (0), through mid-morning (0.25), noon (0.5), and post-sunset magic hour (0.75), to night (1). Intermediate values describe transitions between adjacent lighting conditions; the unselected default remains noon.
 
 **Season**:
-The rendering variable ordered linearly from spring (0), through summer (1/3) and autumn (2/3), to winter (1), without wrapping winter to spring. Intermediate values represent seasonal transitions, with the fixed default 0.5 describing the transition from summer to autumn.
+The rendering variable ordered linearly from spring (0), through summer (1/3) and autumn (2/3), to winter (1), without wrapping winter to spring. It controls seasonal appearance such as bare deciduous branches in winter and the precipitation type under bad weather (summer rain, winter snow); the fixed default 0.5 describes the transition from summer to autumn.
+
+**Weather**:
+The continuous rendering variable from good weather (0) to bad weather (1). Bad-weather precipitation is rain in spring, summer, and autumn, transitioning continuously through sleet between autumn and winter to snow in winter; winter alone does not request snow.
 
 **Final rendering preview**:
 The selected rendering cell cropped from its matrix and displayed after Finish, at the generated resolution. The user can save that crop as a PNG without generating a new image or upscaling it.

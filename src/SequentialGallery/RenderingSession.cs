@@ -4,13 +4,15 @@ using System.Text;
 
 namespace SequentialGallery;
 
-internal sealed record RenderingVariable(string Name, string[] Anchors) {
-    public string Describe(double value) {
+internal sealed record RenderingVariable(string Name, string Label, string Key, string[] Anchors, string[] Descriptions) {
+    public string Describe(double value) => Blend(value, i => Descriptions[i]);
+    public string Reference(double value) => Blend(value, i => Key + i);
+    private string Blend(double value, Func<int, string> text) {
         double position = value * (Anchors.Length - 1);
         int lower = Math.Min((int)position, Anchors.Length - 1);
-        if (lower == Anchors.Length - 1 || position == lower) return Anchors[lower];
+        if (lower == Anchors.Length - 1 || position == lower) return text(lower);
         double upperWeight = position - lower;
-        return FormattableString.Invariant($"{(1 - upperWeight) * 100:F1}% {Anchors[lower]} + {upperWeight * 100:F1}% {Anchors[lower + 1]}");
+        return FormattableString.Invariant($"{(1 - upperWeight) * 100:F1}% {text(lower)} + {upperWeight * 100:F1}% {text(lower + 1)}");
     }
 }
 
@@ -18,16 +20,8 @@ internal sealed record RenderingBatch(string Prompt, double[][] Values, bool[] V
 
 internal sealed class RenderingSession : IDisposable {
     public const int InitialPromptLimit = 2000;
-    public const string DefaultInitialPrompt = "Preserve the building's number of storeys, overall massing, roof shape, and opening layout. Do not add storeys. Remove Rhino viewport grid lines, axes, selection highlighting, and other CAD overlays.";
-    public static readonly RenderingVariable[] Variables = {
-        new("TimeOfDay", new[] { "Early morning", "Midday", "Night" }),
-        new("RenderingStyle", new[] { "Pencil/line sketch", "Watercolor", "Architectural illustration", "Detailed CGI", "Photorealistic" }),
-        new("Weather", new[] { "Clear skies", "Overcast skies", "Heavy rain" }),
-        new("ColorTemperature", new[] { "Strong cool tones", "Natural color", "Strong warm tones" }),
-        new("Activity", new[] { "No people, quiet", "Moderate foot traffic", "Crowded, lively" }),
-        new("Vegetation", new[] { "Almost no planting", "Moderate planting", "Abundant planting" }),
-        new("Season", new[] { "Spring", "Summer", "Autumn", "Winter" })
-    };
+    public static readonly string DefaultInitialPrompt = RenderingPrompts.Current.DefaultInitialPrompt;
+    public static readonly RenderingVariable[] Variables = RenderingPrompts.Current.Variables;
     private readonly SpsEngine engine;
     private readonly int[] variableIndices;
     private int plane = 1, zoom;
@@ -38,7 +32,8 @@ internal sealed class RenderingSession : IDisposable {
     public RenderingBatch? Pending { get; private set; }
     public bool Faulted { get; private set; }
 
-    public RenderingSession(int rows, int columns, int[] variableIndices, string initialPrompt = DefaultInitialPrompt) {
+    public RenderingSession(int rows, int columns, int[] variableIndices, string? initialPrompt = null) {
+        initialPrompt ??= DefaultInitialPrompt;
         if (variableIndices.Length < 2 || variableIndices.Length > Variables.Length
             || variableIndices.Distinct().Count() != variableIndices.Length
             || variableIndices.Any(i => i < 0 || i >= Variables.Length))
@@ -74,33 +69,49 @@ internal sealed class RenderingSession : IDisposable {
     private RenderingBatch BuildBatch() {
         var grid = engine.Grid();
         var valid = grid.Select(values => values.All(v => double.IsFinite(v) && v >= 0 && v <= 1)).ToArray();
-        var prompt = new StringBuilder();
-        prompt.AppendLine($"Create ONE square image, an exact {Rows}-row by {Columns}-column contact sheet of architectural renderings.");
-        prompt.AppendLine("Use the supplied facade reference in every valid cell. Preserve its building geometry, camera and composition. All cells must be equal rectangles, edge-to-edge, with no outer margin or gutters. Do not draw text, labels or numbers. Conditions below are indexed top-to-bottom, left-to-right; indices are instructions only. Keep every cell in its specified position. Blend neighboring descriptions by the given weights; do not blend between cells. Season and weather are independent.");
-        if (InitialPrompt.Length > 0) {
-            prompt.AppendLine("Fixed scene instructions apply unchanged to EVERY valid cell and every iteration. They take priority over conflicting atmosphere conditions; vary only aspects not explicitly fixed. The matrix layout and no-label requirements above still apply.");
-            prompt.AppendLine("[Fixed scene instructions]").AppendLine(InitialPrompt).AppendLine("[/Fixed scene instructions]");
-        }
-        const string keys = "TDWCAVS";
-        prompt.AppendLine("Cell keys: " + string.Join("; ", variableIndices.Select(i => $"{keys[i]}={Variables[i].Name}")));
-        foreach (int i in Enumerable.Range(0, Variables.Length).Except(variableIndices))
-            prompt.AppendLine($"Fixed in every valid cell: {Variables[i].Name} = {Variables[i].Describe(.5)}.");
-        for (int i = 0; i < grid.Length; i++) {
-            prompt.Append($"R{i / Columns + 1}C{i % Columns + 1}: ");
-            if (!valid[i]) { prompt.AppendLine("Blank neutral placeholder. No rendering."); continue; }
-            for (int j = 0; j < variableIndices.Length; j++) {
-                var variable = Variables[variableIndices[j]];
-                prompt.Append(keys[variableIndices[j]]).Append('=').Append(variable.Describe(grid[i][j])).Append("; ");
-            }
-            prompt.AppendLine();
-        }
-        if (prompt.Length > 32000) throw new InvalidOperationException("The matrix prompt exceeds the API prompt limit. Choose a smaller grid.");
         var values = grid.Select(vector => {
             var all = Enumerable.Repeat(.5, Variables.Length).ToArray();
             for (int j = 0; j < variableIndices.Length; j++) all[variableIndices[j]] = vector[j];
             return all;
         }).ToArray();
+        var definitions = RenderingPrompts.Current;
+        var prompt = new StringBuilder();
+        prompt.AppendLine(definitions.Layout.Replace("{rows}", Rows.ToString()).Replace("{columns}", Columns.ToString()));
+        prompt.AppendLine(definitions.SceneRules);
+        if (InitialPrompt.Length > 0) {
+            prompt.AppendLine(definitions.FixedSceneRules);
+            prompt.AppendLine("[Fixed scene instructions]").AppendLine(InitialPrompt).AppendLine("[/Fixed scene instructions]");
+        }
+        prompt.AppendLine(definitions.InteractionRules);
+        prompt.AppendLine("Cell keys: " + string.Join("; ", Variables.Select(v => $"{v.Key}={v.Name}")));
+        foreach (var variable in Variables)
+            for (int j = 0; j < variable.Descriptions.Length; j++)
+                prompt.AppendLine($"{variable.Key}{j}: {variable.Descriptions[j]}");
+        foreach (int i in Enumerable.Range(0, Variables.Length).Except(variableIndices))
+            prompt.AppendLine($"Fixed in every valid cell: {Variables[i].Key} = {Variables[i].Reference(.5)}.");
+        for (int i = 0; i < grid.Length; i++) {
+            prompt.Append($"R{i / Columns + 1}C{i % Columns + 1}: ");
+            if (!valid[i]) { prompt.AppendLine(definitions.BlankCell); continue; }
+            for (int j = 0; j < variableIndices.Length; j++) {
+                var variable = Variables[variableIndices[j]];
+                prompt.Append(variable.Key).Append('=').Append(variable.Reference(grid[i][j])).Append("; ");
+            }
+            if (values[i][2] > .5) prompt.Append("Precipitation=").Append(DescribePrecipitation(values[i][5])).Append(';');
+            prompt.AppendLine();
+        }
+        if (prompt.Length > 32000) throw new InvalidOperationException("The matrix prompt exceeds the API prompt limit. Choose a smaller grid.");
         return new RenderingBatch(prompt.ToString(), values, valid, plane, zoom + 1);
+    }
+    internal static string DescribePrecipitation(double season) {
+        var definitions = RenderingPrompts.Current;
+        double snow = Math.Clamp((season - 2.0 / 3) * 3, 0, 1);
+        if (snow == 0) return definitions.Rain;
+        if (snow == 1) return definitions.Snow;
+        return FormattableString.Invariant($"{(1 - snow) * 100:F1}% {definitions.Rain} + {snow * 100:F1}% {definitions.Snow}");
+    }
+    internal static string DescribeValue(double[] values, int index) {
+        string description = Variables[index].Describe(values[index]);
+        return index == 2 && values[2] > .5 ? description + " Precipitation: " + DescribePrecipitation(values[5]) + "." : description;
     }
     public void Dispose() => engine.Dispose();
 }

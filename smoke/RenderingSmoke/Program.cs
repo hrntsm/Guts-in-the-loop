@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -42,28 +43,71 @@ internal static class Program {
                 var session = Field<RenderingSession>(window, "session");
                 Require(session.Displayed != null && session.Pending == null, "Start must display one matrix. " + Status(window));
                 Require(((FrameworkElement)window.FindName("SetupPanel")).Visibility == Visibility.Collapsed, "Setup must disappear.");
-                Require(session.Displayed!.Valid.Length == 25 && session.Displayed.Values.All(v => v.Length == 7), "Default grid must map 25 seven-variable conditions.");
+                Require(session.Displayed!.Valid.Length == 25 && session.Displayed.Values.All(v => v.Length == 6), "Default grid must map 25 six-variable conditions.");
                 if (!live) {
                     Require(session.InitialPrompt == fixedScene && session.Displayed.Prompt.Contains(fixedScene), "Initial prompt must be captured and sent in the first matrix request.");
                     Require(((TextBox)window.FindName("InitialPrompt")).IsReadOnly, "Initial prompt must be frozen after Start.");
                     ((TextBox)window.FindName("InitialPrompt")).Text = "Do not use this changed text in the running session.";
-                    Require(RenderingSession.Variables[1].Describe(.25) == "Watercolor", "Watercolor anchor must be distinct.");
-                    Require(RenderingSession.Variables[6].Describe(.5).Contains("Summer") && RenderingSession.Variables[6].Describe(.5).Contains("Autumn"), "Season midpoint must blend summer/autumn.");
+                    Click(window, "ShowPromptButton");
+                    Require(((FrameworkElement)window.FindName("PromptPanel")).Visibility == Visibility.Visible, "Show Prompt must open the right-hand panel.");
+                    Require(((TextBox)window.FindName("InspectorInitialPrompt")).Text == fixedScene, "Inspector must show the captured initial instructions, not changed setup text.");
+                    var valueGrid = (System.Windows.Controls.Primitives.UniformGrid)window.FindName("PromptValueGrid");
+                    Require(valueGrid.Rows == 5 && valueGrid.Columns == 5 && valueGrid.Children.Count == 25, "Inspector must mirror the image's 5x5 arrangement.");
+                    for (int i = 0; i < valueGrid.Children.Count; i++)
+                        for (int j = 0; j < RenderingSession.Variables.Length; j++)
+                            Require(((Button)valueGrid.Children[i]).ToolTip.ToString()!.Contains(RenderingSession.Variables[j].Name + ": "
+                                + session.Displayed.Values[i][j].ToString("G17", CultureInfo.InvariantCulture)), "Each box must contain exact values for all six variables in its details.");
+                    Require(((TextBox)window.FindName("FullPrompt")).Text == session.Displayed.Prompt, "Full prompt must be the exact request for the displayed image.");
+                    Click(window, "ShowPromptButton");
+                    Require(((FrameworkElement)window.FindName("PromptPanel")).Visibility == Visibility.Collapsed, "Hide Prompt must restore the full image area.");
+                    Click(window, "ShowPromptButton");
+                    using (var toggleStats = await JsonDocument.ParseAsync(await control.GetStreamAsync("stats")))
+                        Require(toggleStats.RootElement.GetProperty("requests").GetArrayLength() == priorRequests + 1, "Toggling prompt details must not generate images.");
+                    Require(RenderingSession.Variables.Select(v => v.Name).SequenceEqual(new[] { "TimeOfDay", "RenderingStyle", "Weather", "Activity", "Vegetation", "Season" }), "Color temperature must be removed from the search and inspector vector.");
+                    Require(RenderingSession.Variables[1].Describe(.25).Contains("translucent watercolor"), "Light watercolor must include hand-drawn linework and pale washes.");
+                    Require(RenderingSession.Variables[0].Describe(.75).Contains("after sunset"), "Twilight must have its own anchor.");
+                    Require(RenderingSession.Variables[5].Describe(.5).Contains("Summer") && RenderingSession.Variables[5].Describe(.5).Contains("Autumn"), "Season midpoint must blend summer/autumn.");
+                    Require(RenderingSession.DescribePrecipitation(0) == "rain" && RenderingSession.DescribePrecipitation(1.0 / 3) == "rain"
+                        && RenderingSession.DescribePrecipitation(2.0 / 3) == "rain" && RenderingSession.DescribePrecipitation(1) == "snow", "Season must control rain versus snow without making every winter cell snowy.");
+                    Require(RenderingSession.DescribePrecipitation(5.0 / 6) == "50.0% rain + 50.0% snow", "Autumn-to-winter precipitation must blend continuously.");
+                    var winter = new[] { .5, .5, 1.0, .5, .5, 1.0 };
+                    Require(RenderingSession.DescribeValue(winter, 2).EndsWith("Precipitation: snow."), "Inspector must resolve heavy winter weather to snow.");
+                    winter[2] = 0;
+                    Require(!RenderingSession.DescribeValue(winter, 2).Contains("Precipitation:"), "Clear winter must not request precipitation.");
+                    foreach (var variable in RenderingSession.Variables) {
+                        Require(variable.Anchors.Length == variable.Descriptions.Length, "Every anchor must have a prompt definition.");
+                        for (int i = 0; i < variable.Descriptions.Length; i++)
+                            Require(session.Displayed.Prompt.Contains(variable.Key + i + ": " + variable.Descriptions[i]), "Every referenced anchor must be defined in the actual request.");
+                    }
                     foreach (int size in new[] {3,5,7,9}) {
-                        using var large = new RenderingSession(size, 9, Enumerable.Range(0, 7).ToArray(), new string('x', RenderingSession.InitialPromptLimit));
+                        using var large = new RenderingSession(size, 9, Enumerable.Range(0, 6).ToArray(), new string('x', RenderingSession.InitialPromptLimit));
                         Require(large.Pending!.Prompt.Length <= 32000, "Supported grids must fit API prompt limits.");
+                        foreach (int i in Enumerable.Range(0, large.Pending.Values.Length).Where(i => large.Pending.Valid[i] && large.Pending.Values[i][2] > .5)) {
+                            string cell = large.Pending.Prompt.Split('\n').Single(line => line.StartsWith($"R{i / 9 + 1}C{i % 9 + 1}: "));
+                            Require(cell.Contains("Precipitation=" + RenderingSession.DescribePrecipitation(large.Pending.Values[i][5])), "Each wet-weather cell must carry the precipitation type for its own season.");
+                        }
                     }
                     using var subset = new RenderingSession(3, 7, new[] {0,1});
                     Require(subset.Pending!.Values.All(v => v.Skip(2).All(x => x == .5)), "Unselected variables must remain fixed.");
                     SelectCenter(window);
                     Require(Field<int>(window, "selected") == 12 && session.Pending == null, "Click must select without generation.");
+                    Require(((Button)valueGrid.Children[12]).BorderBrush == Brushes.Orange, "Image selection must highlight the corresponding value box.");
+                    Require(((TextBox)window.FindName("SelectedCellValues")).Text.Contains(session.Displayed.Values[12][0].ToString("G17", CultureInfo.InvariantCulture)), "Selected details must show exact continuous values.");
+                    int firstValid = Array.FindIndex(session.Displayed.Valid, v => v);
+                    ((Button)valueGrid.Children[firstValid]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Require(Field<int>(window, "selected") == firstValid, "Selecting a valid value box must highlight its image cell.");
+                    SelectCenter(window);
                     var previous = Field<BitmapSource>(window, "displayedImage");
+                    string displayedPrompt = session.Displayed.Prompt;
                     await SetMode("rate-limit"); Click(window, "NextButton"); await Wait(window);
                     Require(Status(window).Contains("429") && session.Pending?.SelectionStage == 2, "Failed Next must retain one pending search advance.");
                     Require(ReferenceEquals(previous, Field<BitmapSource>(window, "displayedImage")), "Failure must preserve previous image.");
+                    Require(((TextBox)window.FindName("FullPrompt")).Text == displayedPrompt
+                        && ((TextBlock)window.FindName("PromptContext")).Text.Contains("pending"), "Failed pending requests must not replace the displayed image's inspector data.");
                     string pendingPrompt = session.Pending!.Prompt;
                     Click(window, "RetryButton"); await Wait(window);
                     Require(session.Displayed!.Prompt == pendingPrompt && session.Displayed.SelectionStage == 2 && session.Pending == null, "Retry must reuse the pending conditions without advancing.");
+                    Require(((TextBox)window.FindName("FullPrompt")).Text == pendingPrompt, "Successful replacement must update the inspector to its actual request.");
                     Require(Field<int>(window, "selected") == -1, "New response must clear selection.");
                     SelectCenter(window); Click(window, "RegenerateButton"); await Wait(window);
                     Require(session.Displayed.Prompt == pendingPrompt && session.Displayed.SelectionStage == 2 && Field<int>(window, "selected") == -1, "Regenerate must not advance the search.");
@@ -95,6 +139,8 @@ internal static class Program {
                 var crop = Field<BitmapSource>(window, "finalCrop");
                 Require(crop.PixelWidth is 204 or 205 && crop.PixelHeight is 204 or 205, "Finish must crop original matrix pixels.");
                 Require(((FrameworkElement)window.FindName("SaveButton")).Visibility == Visibility.Visible, "Final preview must offer PNG saving.");
+                if (!live) Require(((FrameworkElement)window.FindName("PromptPanel")).Visibility == Visibility.Visible
+                    && ((System.Windows.Controls.Primitives.UniformGrid)window.FindName("PromptValueGrid")).Children.Count == 25, "Final crop must retain its source matrix prompt and values.");
                 string cropPath = live ? "build/evidence/rendering-live-crop.png" : "build/evidence/rendering-crop.png";
                 RenderingWindow.SavePng(crop, cropPath);
                 var saved = RenderingWindow.Decode(File.ReadAllBytes(cropPath));

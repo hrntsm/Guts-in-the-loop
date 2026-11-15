@@ -13,8 +13,8 @@
    <Setter Property="BorderBrush" Value="#AAFFFFFF"/><Setter Property="BorderThickness" Value="1"/>
    <Setter Property="FontSize" Value="20"/><Setter Property="Padding" Value="0"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
-     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+     <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
     </Border>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
@@ -35,6 +35,7 @@
     <Button x:Name="RegenerateButton" Content="Regenerate" Click="RegenerateClick" Visibility="Collapsed"/>
     <Button x:Name="NextButton" Content="Next" Click="NextClick" Visibility="Collapsed"/>
     <Button x:Name="FinishButton" Content="Finish" Click="FinishClick" Visibility="Collapsed"/>
+    <Button x:Name="ShowPromptButton" Content="Show Prompt" Click="ShowPromptClick" Visibility="Collapsed"/>
     <Button x:Name="SaveButton" Content="Save PNG" Click="SaveClick" Visibility="Collapsed"/>
    </WrapPanel>
   </StackPanel>
@@ -63,13 +64,48 @@
     <Button x:Name="StartButton" Content="Start rendering exploration" Click="StartClick" HorizontalAlignment="Left" Margin="0,16,0,0"/>
    </StackPanel>
    </ScrollViewer>
-   <Viewbox x:Name="MatrixView" Visibility="Collapsed" Stretch="Uniform">
-    <Grid Width="1024" Height="1024" Background="#222B36">
-     <Image x:Name="MatrixImage" Stretch="Fill"/>
-     <UniformGrid x:Name="CellOverlay"/>
+   <Grid x:Name="RenderingLayout" Visibility="Collapsed">
+    <Grid.ColumnDefinitions>
+     <ColumnDefinition Width="3*" MinWidth="200"/>
+     <ColumnDefinition x:Name="PromptGutter" Width="0"/>
+     <ColumnDefinition x:Name="PromptColumn" Width="0"/>
+    </Grid.ColumnDefinitions>
+    <Grid>
+     <Viewbox x:Name="MatrixView" Visibility="Collapsed" Stretch="Uniform">
+      <Grid Width="1024" Height="1024" Background="#222B36">
+       <Image x:Name="MatrixImage" Stretch="Fill"/>
+       <UniformGrid x:Name="CellOverlay"/>
+      </Grid>
+     </Viewbox>
+     <Image x:Name="FinalImage" Visibility="Collapsed" Stretch="Uniform"/>
     </Grid>
-   </Viewbox>
-   <Image x:Name="FinalImage" Visibility="Collapsed" Stretch="Uniform"/>
+    <GridSplitter x:Name="PromptSplitter" Grid.Column="1" Visibility="Collapsed" Width="6" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="#526174" ResizeBehavior="PreviousAndNext"/>
+    <Border x:Name="PromptPanel" Grid.Column="2" Visibility="Collapsed" Background="#1D2530" Padding="12">
+     <DockPanel>
+      <StackPanel DockPanel.Dock="Top">
+       <TextBlock Text="Prompt details" FontSize="18" FontWeight="SemiBold"/>
+       <TextBlock x:Name="PromptContext" TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,6,0,10"/>
+       <TextBlock Text="Initial prompt" FontWeight="SemiBold" Margin="0,0,0,6"/>
+       <TextBox x:Name="InspectorInitialPrompt" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Height="90" Padding="6" Background="#222B36" Foreground="White"/>
+      </StackPanel>
+      <Expander DockPanel.Dock="Bottom" Header="Full API prompt" Foreground="White" Margin="0,8,0,0">
+       <TextBox x:Name="FullPrompt" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Height="180" Padding="6" Background="#222B36" Foreground="White"/>
+      </Expander>
+      <Expander DockPanel.Dock="Bottom" Header="Selected cell details" Foreground="White" Margin="0,8,0,0">
+       <TextBox x:Name="SelectedCellValues" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Height="140" Padding="6" Background="#222B36" Foreground="White"/>
+      </Expander>
+      <DockPanel Margin="0,12,0,0">
+       <StackPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+        <TextBlock Text="All cell values" FontWeight="SemiBold"/>
+        <TextBlock Text="Same layout as the image. Each box contains all six normalized values. Click a valid box to select its image cell; hover for exact values and descriptions." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,4,0,0"/>
+       </StackPanel>
+       <ScrollViewer x:Name="PromptValueScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+        <UniformGrid x:Name="PromptValueGrid" VerticalAlignment="Top"/>
+       </ScrollViewer>
+      </DockPanel>
+     </DockPanel>
+    </Border>
+   </Grid>
   </Grid>
  </DockPanel>
 </Window>

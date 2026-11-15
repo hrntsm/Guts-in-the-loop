@@ -5,6 +5,8 @@
  </PropertyGroup>
  <ItemGroup>
   <Compile Include="Program.cs"/>
+  <Compile Include="../../src/SequentialGallery/RenderingPrompts.cs" Link="RenderingPrompts.cs"/>
+  <EmbeddedResource Include="../../src/SequentialGallery/Prompts/rendering.json" LogicalName="SequentialGallery.RenderingPrompts.json"/>
   <Compile Include="../../src/SequentialGallery/SpsEngine.cs" Link="SpsEngine.cs"/>
   <Compile Include="../../src/SequentialGallery/RenderingSession.cs" Link="RenderingSession.cs"/>
   <Compile Include="../../src/SequentialGallery/RenderingApi.cs" Link="RenderingApi.cs"/>
