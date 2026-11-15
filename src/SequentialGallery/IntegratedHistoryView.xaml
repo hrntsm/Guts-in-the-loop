@@ -8,14 +8,10 @@
   <Grid.ColumnDefinitions><ColumnDefinition Width="3*" MinWidth="350"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*" MinWidth="240"/></Grid.ColumnDefinitions>
   <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="8">
    <WrapPanel>
-    <TextBlock Text="Completed choice in preview: " VerticalAlignment="Center"/>
-    <ComboBox x:Name="CompletedChoice" MinWidth="170" Margin="4" DisplayMemberPath="Label"/>
-    <Button x:Name="ChooseFinalButton" Content="Use for final rendering" Padding="12,8" Margin="4" Click="ChooseFinalClick" IsEnabled="False"/>
-   </WrapPanel>
-   <WrapPanel>
     <TextBlock x:Name="FinalSelectionLabel" TextWrapping="Wrap" VerticalAlignment="Center" Margin="4" MaxWidth="680"/>
-    <Button x:Name="OpenFinalButton" Content="Configure final rendering" Padding="12,8" Margin="4" Click="OpenFinalClick" IsEnabled="False"/>
+    <Button x:Name="OpenFinalButton" Content="Final" Padding="20,8" Margin="4" Click="OpenFinalClick" IsEnabled="False"/>
    </WrapPanel>
+   <TextBlock Text="Confirm a selection in Evaluate (or use Next), then right-click its source node to use it for final rendering. The last confirmed choice is used." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="4"/>
   </StackPanel>
   <DockPanel>
    <StackPanel DockPanel.Dock="Top" Margin="8">

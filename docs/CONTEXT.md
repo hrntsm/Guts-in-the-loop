@@ -17,7 +17,10 @@ A retained path of exploration steps descended from earlier candidate selections
 One displayed candidate grid at a particular exploration step, including intermediate zoom stages. It identifies a point from which the corresponding exploration state can be restored.
 
 **Completed finishing choice**:
-A candidate explicitly confirmed in Evaluate or committed through Next, identified by its source history node and cell. It is eligible for finishing without requiring another generated grid.
+A candidate explicitly confirmed in Evaluate or committed through Next, identified by its source history node and cell. It is eligible for finishing without requiring another generated grid. History uses the node's last confirmed choice for final rendering; reconfirming an earlier cell updates that recency without duplicating it.
+
+**Final node pin**:
+The geometry or rendering source node selected through `Use this node for final` in its context menu. Each pin follows that node's last confirmed candidate and is identified by node and cell at the bottom of History. Choosing another node overwrites the pin of the same type without resuming exploration.
 
 **Regeneration variant**:
 An AI rendering history node containing a newly generated matrix for the same candidate conditions and optimizer state as its source node. The source remains available, and either image variant can be used to continue exploration without treating regeneration itself as a preference selection.

@@ -54,12 +54,13 @@ dotnet build tests/GeometrySmoke/GeometrySmoke.csproj -c Release
 dotnet tests/GeometrySmoke/bin/Release/net10.0-windows/GeometrySmoke.dll
 ```
 
-For image viewing and close-confirmation checks without HTTP:
+For image viewing, close-confirmation, and History context-menu checks without HTTP:
 
 ```powershell
 dotnet build tests/IntegratedSmoke/IntegratedSmoke.csproj -c Release
 dotnet tests/IntegratedSmoke/bin/Release/net10.0-windows/IntegratedSmoke.dll --view-only
 dotnet tests/IntegratedSmoke/bin/Release/net10.0-windows/IntegratedSmoke.dll --close-only
+dotnet tests/IntegratedSmoke/bin/Release/net10.0-windows/IntegratedSmoke.dll --history-only
 ```
 
 For rendering and full integration checks, start the local Postman stand-in in one terminal:

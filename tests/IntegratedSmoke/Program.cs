@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -28,6 +29,7 @@ internal static class Program {
                 Directory.CreateDirectory(ResultExport.RootDirectoryOverride);
                 if (args.Contains("--close-only")) { await VerifyCloseAsync(); return; }
                 if (args.Contains("--view-only")) { await VerifyViewAsync(); return; }
+                if (args.Contains("--history-only")) { await VerifyHistoryAsync(); return; }
                 int initialRequests = await RequestCount();
                 var host = new FakeHost(); int viewportCaptures = 0;
                 int closePrompts = 0;
@@ -100,13 +102,18 @@ internal static class Program {
                 Capture(window, "build/evidence/integrated-evaluate.png");
                 SelectRendering(rendering, 12); Click(rendering, "ConfirmButton");
                 SelectRendering(rendering, 11); Click(rendering, "ConfirmButton");
-                history.Preview(false, firstAiNode);
-                Require(((ComboBox)history.FindName("CompletedChoice")).Items.Count == 2 && ((ComboBox)history.FindName("CompletedChoice")).SelectedItem == null,
-                    "Multiple completed branches require explicit disambiguation.");
+                SelectRendering(rendering, 12); Click(rendering, "ConfirmButton");
+                Require(rendering.CompletedChoices.Count == 3 && rendering.CompletedChoices.Last().SourceNodeId == firstAiNode
+                    && rendering.CompletedChoices.Last().Cell == 12, "Reconfirmation must update the last choice without adding a duplicate.");
+                var flatMenu = NodeMenu(history, false, firstAiNode);
+                Require(flatMenu.Items.Count == 2 && flatMenu.Items.Cast<MenuItem>().All(item => item.Items.Count == 0),
+                    "History nodes must have only the two flat context actions, even with multiple confirmed choices.");
                 Require(!history.SelectForFinal(false, firstAiNode, 0), "An arbitrary unchosen historical cell must not be eligible.");
-                Require(history.SelectForFinal(true, sourceA.SourceNodeId, sourceA.Cell) && history.SelectForFinal(false, conditionsNode, 12), "Final rendering permits independent geometry A and conditions from geometry B.");
+                geometry.ResumeHistory(sourceA.SourceNodeId); SelectGeometry(geometry, sourceA.Cell); Click(geometry, "ConfirmButton");
+                MenuClick(NodeMenu(history, true, sourceA.SourceNodeId), 1);
+                MenuClick(NodeMenu(history, false, conditionsNode), 1);
                 int requestsBeforeFinal = await RequestCount();
-                history.OpenFinal(); var final = window.FinalRendering;
+                Click(history, "OpenFinalButton"); var final = window.FinalRendering;
                 Require(await RequestCount() == requestsBeforeFinal && final.PromptEditor.Text.Contains("Preserve the same one-storey building.")
                     && !final.PromptEditor.Text.Contains("contact sheet of architectural renderings"), "Opening final settings must not generate, and must preserve custom scene constraints.");
                 var defaultChoice = finalConditions with { InitialPrompt = RenderingSession.DefaultInitialPrompt };
@@ -192,6 +199,114 @@ internal static class Program {
         };
         app.Run();
     }
+    private static async Task VerifyHistoryAsync() {
+        IntegratedWindow? window = null;
+        Window? historyWindow = null;
+        try {
+            var host = new FakeHost(); int apiCalls = 0;
+            window = new IntegratedWindow(() => host, null, () => Reference(80),
+                () => { apiCalls++; throw new Exception("History actions must not request an image."); }, () => true);
+            ShowOffscreen(window);
+            var geometry = window.Geometry!;
+            Choice(geometry, "RowsChoice", 0); Choice(geometry, "ColumnsChoice", 0);
+            Click(geometry, "StartButton"); await Wait(window);
+            var liveHistory = (IntegratedHistoryView)window.FindName("History");
+            Require(!((MenuItem)NodeMenu(liveHistory, true, 0).Items[1]).IsEnabled, "An unconfirmed source node cannot be used for final rendering.");
+            SelectGeometry(geometry, 4); Click(geometry, "ConfirmButton");
+            var first = geometry.SelectedCandidate!;
+            SelectGeometry(geometry, 0); Click(geometry, "ConfirmButton");
+            SelectGeometry(geometry, 4); Click(geometry, "ConfirmButton");
+            Require(geometry.CompletedChoices.Count == 2 && geometry.CompletedChoices.Last().Cell == 4 && host.Applies == 9,
+                "Reconfirming an earlier geometry choice must update recency without duplicates or computation.");
+            Click(geometry, "NextButton"); await Wait(window);
+            SelectGeometry(geometry, 8); Click(geometry, "ConfirmButton");
+            var second = geometry.SelectedCandidate!;
+            int applies = host.Applies;
+            ((TabControl)window.FindName("ModeTabs")).SelectedIndex = 1;
+            liveHistory.Preview(true, 1);
+            MenuClick(NodeMenu(liveHistory, true, 0), 0);
+            Require(geometry.ActiveHistoryNodeId == 0 && host.Applies == applies
+                && ((TabControl)window.FindName("ModeTabs")).SelectedIndex == 0,
+                "Context Resume must restore its clicked node, not the other preview, without solves.");
+
+            var history = new IntegratedHistoryView();
+            historyWindow = new Window { Content = history, Width = 1100, Height = 740, ShowActivated = false,
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000 };
+            historyWindow.Show();
+            var image = RenderingPane.Decode(first.ReferencePng);
+            var renderItems = Enumerable.Range(0, 3).Select(id => new HistoryItem(id, null, "Plane 1 · Step 1", image, "Start", "Stored conditions")).ToArray();
+            var conditionsA = new RenderingChoice(0, 4, 3, 3, 1, 1, Enumerable.Repeat(.5, 6).ToArray(), new[] { 0, 1 }, "", "", first.ReferencePng, first);
+            var conditionsB = conditionsA with { SourceNodeId = 1, Cell = 8, OriginalGeometry = second };
+            GeometryCandidate[] shapes = { first, second };
+            RenderingChoice[] conditions = { conditionsA, conditionsB };
+            var sources = new Dictionary<int, GeometryCandidate?> { [0] = first, [1] = second, [2] = second };
+            history.SetCompletedChoices(shapes, conditions, true);
+            history.SetItems(geometry.HistoryItems, 0, true, renderItems, 0, true, sources, true);
+            Require(!((Button)history.FindName("OpenFinalButton")).IsEnabled, "Final must start disabled without both pins.");
+            var geometryMenu = NodeMenu(history, true, 0);
+            Require(geometryMenu.Items.Count == 2 && (string)((MenuItem)geometryMenu.Items[0]).Header == "Resume from here"
+                && (string)((MenuItem)geometryMenu.Items[1]).Header == "Use this node for final"
+                && geometryMenu.Items.Cast<MenuItem>().All(item => item.Items.Count == 0), "Each node must have exactly two flat context actions.");
+            history.Preview(false, 2); MenuClick(geometryMenu, 1);
+            Require(FinalLabel(history).Contains("Geometry: G1 R2 C2") && !((Button)history.FindName("OpenFinalButton")).IsEnabled,
+                "Context selection must use the clicked source node and keep Final disabled with one pin.");
+            MenuClick(NodeMenu(history, false, 1), 1);
+            Require(FinalLabel(history).Contains("Rendering: AI2 R3 C3") && ((Button)history.FindName("OpenFinalButton")).IsEnabled,
+                "Independent geometry and rendering pins must be identified in the footer and enable Final.");
+            GeometryCandidate? chosenShape = null; RenderingChoice? chosenConditions = null;
+            history.FinalRequested += (shape, choice) => { chosenShape = shape; chosenConditions = choice; };
+            Click(history, "OpenFinalButton");
+            Require(chosenShape?.Key == first.Key && chosenConditions?.Key == conditionsB.Key,
+                "Final must open with the independently selected source records.");
+            string label = FinalLabel(history);
+            history.Preview(false, 0);
+            history.SetItems(geometry.HistoryItems, 1, true, renderItems, 2, true, sources, true);
+            Require(FinalLabel(history) == label && ((MenuItem)NodeMenu(history, true, 0).Items[1]).IsChecked,
+                "Preview changes and graph redraws must retain the selected pair and context checkmarks.");
+            MenuClick(NodeMenu(history, true, 1), 1);
+            Require(FinalLabel(history).Contains("Geometry: G2 R3 C3") && FinalLabel(history).Contains("Rendering: AI2 R3 C3"),
+                "Selecting another node must overwrite only the same-type pin.");
+            shapes = new[] { first, second, second with { Cell = 0 } };
+            conditions = new[] { conditionsA, conditionsB, conditionsB with { Cell = 4 } };
+            history.SetCompletedChoices(shapes, conditions, true);
+            Require(FinalLabel(history).Contains("Geometry: G2 R1 C1") && FinalLabel(history).Contains("Rendering: AI2 R2 C2"),
+                "Pinned nodes must follow their current last-confirmed candidate without a submenu.");
+            var noChoice = (MenuItem)NodeMenu(history, false, 2).Items[1];
+            Require(!noChoice.IsEnabled && noChoice.ToolTip.ToString()!.Contains("Confirm"), "Unconfirmed nodes must explain their disabled final action.");
+            history.SetCompletedChoices(shapes, conditions, false);
+            history.SetItems(geometry.HistoryItems, 1, false, renderItems, 2, false, sources, true);
+            Require(!((Button)history.FindName("OpenFinalButton")).IsEnabled && NodeMenu(history, true, 1).Items.Cast<MenuItem>().All(item => !item.IsEnabled),
+                "Busy state must disable context actions and Final without losing the pair.");
+            history.SetCompletedChoices(shapes, conditions, true);
+            history.SetItems(geometry.HistoryItems, 1, true, renderItems, 2, true, sources, true);
+            (bool Geometry, int Id)? resumed = null;
+            history.ResumeRequested += (shape, id) => resumed = (shape, id);
+            history.Preview(false, 2); MenuClick(NodeMenu(history, true, 0), 0);
+            Require(resumed == (true, 0) && FinalLabel(history).Contains("Geometry: G2 R1 C1"),
+                "Context Resume must target its own node without overwriting the final pair.");
+            historyWindow.UpdateLayout(); Capture(historyWindow, "build/evidence/history-context-final.png");
+
+            var aiOnly = new IntegratedHistoryView();
+            var viewportChoice = conditionsA with { OriginalGeometry = null };
+            aiOnly.SetCompletedChoices(null, new[] { viewportChoice }, true);
+            aiOnly.SetItems(null, null, false, renderItems, 0, true, new Dictionary<int, GeometryCandidate?>(), false);
+            Require(!((Button)aiOnly.FindName("OpenFinalButton")).IsEnabled, "AI-only Final requires a rendering pin.");
+            MenuClick(NodeMenu(aiOnly, false, 0), 1);
+            aiOnly.FinalRequested += (shape, choice) => { chosenShape = shape; chosenConditions = choice; };
+            Click(aiOnly, "OpenFinalButton");
+            Require(chosenShape == null && chosenConditions == viewportChoice && FinalLabel(aiOnly).Contains("original viewport reference"),
+                "AI-only Final must require only rendering conditions and preserve the viewport reference.");
+            Require(host.Applies == applies && apiCalls == 0, "Context actions must not solve, generate images, or advance exploration.");
+            Console.WriteLine("PASS: flat History context actions, exact-node resume, last-confirmed deduplication, final pair overwrite/footer IDs, busy and eligibility guards, AI-only final selection. No HTTP requests.");
+        } finally { historyWindow?.Close(); window?.ForceClose(); }
+    }
+    private static ContextMenu NodeMenu(IntegratedHistoryView history, bool geometry, int node) =>
+        ((Button)Field<Dictionary<string, Border>>(history, "cards")[(geometry ? "g:" : "r:") + node].Child).ContextMenu;
+    private static void MenuClick(ContextMenu menu, int index) {
+        var item = (MenuItem)menu.Items[index]; Require(item.IsEnabled, "Context action must be enabled.");
+        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    }
+    private static string FinalLabel(IntegratedHistoryView history) => ((TextBlock)history.FindName("FinalSelectionLabel")).Text;
     private static async Task VerifyCloseAsync() {
         IntegratedWindow? window = null;
         FakeHost? host = null;

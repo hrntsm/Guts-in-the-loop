@@ -107,6 +107,13 @@ assumptions:
     verification: On dirty eb1efd6, the eight-call integrated run passed matrix hit testing after horizontal and vertical scrolling, manual zoom across Show Prompt layout changes, full 1536x1024 final-preview inspection, Fit reset, unchanged request counts, accepted-snapshot export, and the existing save/cancel checks. Separate no-HTTP view-only checks passed geometry native-size retention, both scroll offsets, real window resizing, Fit reset after overflow, geometry hit testing, History preview, and monotonic controls at extreme Fit scales. Close-only regression also passed. Release build had zero managed warnings or errors. No paid requests were made; physical mouse interaction inside Rhino and improved AI image fidelity were not established.
     source: src/SequentialGallery/ImageViewport.cs; tests/IntegratedSmoke/Program.cs; ignored .cache/validation-archive/image-scroll-matrix.png; ignored .cache/validation-archive/image-scroll-final.png
     updated_at: '2026-11-15'
+  - id: history-context-final-pins
+    status: supported
+    claim: History context actions select independent final geometry and rendering nodes, using their last confirmed candidates without advancing exploration or adding image requests.
+    reason: The production History control's MenuItem click handlers ran in WPF checks, and the integrated flow used those handlers to open the existing standalone final-render workflow.
+    verification: On dirty cb7d9d2, the no-HTTP history-only check passed flat Resume/Use-final menus, exact-target resume, last-confirmation deduplication, node replacement, pinned-candidate refresh, footer identifiers, busy guards, eligibility, and AI-only selection. The eight-call integrated run passed actual rendering reconfirmation, geometry A combined with conditions from B, unchanged request counts, and accepted-image provenance/export. Release builds had zero managed warnings or errors. No paid requests were made; native context-menu popup interaction was not physically exercised.
+    source: src/SequentialGallery/IntegratedHistoryView.xaml.cs; tests/IntegratedSmoke/Program.cs
+    updated_at: '2026-11-15'
 fingerprints:
   - id: initial-rendering
     date: '2026-11-14'

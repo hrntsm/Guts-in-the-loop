@@ -117,7 +117,8 @@ internal partial class GeometryPane : UserControl {
         if (HandoffButton.IsEnabled && selectedCandidate != null) HandoffRequested?.Invoke(selectedCandidate);
     }
     private void RecordChoice(GeometryCandidate candidate) {
-        if (!completedChoices.Any(c => c.Key == candidate.Key)) completedChoices.Add(candidate);
+        completedChoices.RemoveAll(c => c.Key == candidate.Key);
+        completedChoices.Add(candidate);
     }
     private void ConfirmClick(object sender, RoutedEventArgs e) {
         if (!ConfirmButton.IsEnabled || selectedCandidate == null) return;

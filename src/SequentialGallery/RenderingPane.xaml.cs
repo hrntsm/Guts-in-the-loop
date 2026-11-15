@@ -373,7 +373,7 @@ internal partial class RenderingPane : UserControl {
     }
     private void RecordChoice() {
         if (activeNode == null || displayedBatch == null || selected < 0 || currentRun == null) return;
-        if (completedChoices.Any(c => c.SourceNodeId == activeNode.Id && c.Cell == selected)) return;
+        completedChoices.RemoveAll(c => c.SourceNodeId == activeNode.Id && c.Cell == selected);
         var batch = displayedBatch;
         completedChoices.Add(new RenderingChoice(activeNode.Id, selected, session!.Rows, session.Columns,
             batch.Plane, batch.SelectionStage, (double[])batch.Values[selected].Clone(), (int[])exploredVariables.Clone(),
