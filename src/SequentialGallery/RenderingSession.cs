@@ -19,13 +19,17 @@ internal sealed record RenderingVariable(string Name, string Label, string Key, 
 
 internal sealed record RenderingBatch(string Prompt, double[][] Values, bool[] Valid, int Plane, int SelectionStage);
 
+internal sealed record RenderingState(SpsEngine Engine, RenderingBatch Batch, int Plane, int Zoom) : IDisposable {
+    public void Dispose() => Engine.Dispose();
+}
+
 internal sealed class RenderingSession : IDisposable {
     public const int InitialPromptLimit = 2000;
     public const int NegativePromptLimit = 2000;
     public static readonly string DefaultInitialPrompt = RenderingPrompts.Current.DefaultInitialPrompt;
     public static readonly string DefaultNegativePrompt = RenderingPrompts.Current.DefaultNegativePrompt;
     public static readonly RenderingVariable[] Variables = RenderingPrompts.Current.Variables;
-    private readonly SpsEngine engine;
+    private SpsEngine engine;
     private readonly int[] variableIndices;
     private readonly double[] fixedValues;
     private int plane = 1, zoom;
@@ -77,6 +81,21 @@ internal sealed class RenderingSession : IDisposable {
         if (!ReferenceEquals(Pending, batch)) throw new InvalidOperationException("This response no longer belongs to the pending generation.");
         Displayed = batch;
         Pending = null;
+    }
+    public RenderingState CaptureState() {
+        if (Faulted || Pending != null || Displayed == null)
+            throw new InvalidOperationException("Only completed rendering states can be recorded.");
+        return new RenderingState(engine.Clone(), Displayed, plane, zoom);
+    }
+    public void RestoreState(RenderingState state) {
+        var restored = state.Engine.Clone();
+        engine.Dispose();
+        engine = restored;
+        Displayed = state.Batch;
+        Pending = null;
+        plane = state.Plane;
+        zoom = state.Zoom;
+        Faulted = false;
     }
     private RenderingBatch BuildBatch() {
         var grid = engine.Grid();

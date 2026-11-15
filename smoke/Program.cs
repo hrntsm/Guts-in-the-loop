@@ -43,4 +43,25 @@ using var tall = new SpsEngine(3, 9, 3);
 Require(tall.Grid().Length == 27 && tall.Grid()[13].All(x => Math.Abs(x - .5) < 1e-10), "Tall grid must retain its center.");
 tall.Select(0);
 Require(tall.Grid().Any(x => x.Any(v => v < 0 || v > 1)), "Rectangular edge zoom must preserve extrapolation.");
-Console.WriteLine("PASS: C# / C ABI / author SPS, 5x5 and rectangular grids, 2x zoom on both axes, learned plane updates, boundary extrapolation.");
+using var branchSource = new SpsEngine(3, 3, 7);
+for (int click = 0; click < 8; click++) branchSource.Select(10);
+Require(branchSource.LearnedPreferenceCount == 2, "Two learned planes must contain two observations.");
+branchSource.Select(10);
+var savedGrid = branchSource.Grid();
+using var savedState = branchSource.Clone();
+Require(savedState.Grid().SelectMany(x => x).SequenceEqual(savedGrid.SelectMany(x => x)), "Snapshot must preserve the exact plane and within-plane zoom.");
+for (int click = 0; click < 3; click++) branchSource.Select(10);
+Require(branchSource.LearnedPreferenceCount == 3 && savedState.LearnedPreferenceCount == 2, "Learning on the live branch must not mutate the saved preference data.");
+using var alternate = savedState.Clone();
+Require(alternate.Grid().SelectMany(x => x).SequenceEqual(savedGrid.SelectMany(x => x)), "Restoring must not reconstruct a new random plane.");
+for (int click = 0; click < 3; click++) alternate.Select(10);
+Require(alternate.LearnedPreferenceCount == 3 && branchSource.LearnedPreferenceCount == 3 && savedState.LearnedPreferenceCount == 2,
+    "Each branch must learn from its own historical observations.");
+Require(savedState.Grid().SelectMany(x => x).SequenceEqual(savedGrid.SelectMany(x => x)), "Advancing both branches must leave the snapshot unchanged.");
+for (int click = 0; click < 4; click++) alternate.Select(10);
+Require(alternate.LearnedPreferenceCount == 4 && branchSource.LearnedPreferenceCount == 3 && savedState.LearnedPreferenceCount == 2,
+    "Repeated learned-plane updates must stay isolated.");
+using var detached = alternate.Clone();
+alternate.Dispose();
+Require(detached.Grid().Length == 21 && detached.LearnedPreferenceCount == 4, "A cloned handle must survive disposal of its source.");
+Console.WriteLine("PASS: C# / C ABI / author SPS, rectangular grids, zoom, learned planes, boundary extrapolation, exact state clones and branch learning isolation.");

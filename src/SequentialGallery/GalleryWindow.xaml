@@ -1,6 +1,7 @@
 <Window x:Class="SequentialGallery.GalleryWindow" x:ClassModifier="internal"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:SequentialGallery"
  Title="Sequential Gallery" Width="1100" Height="850" MinWidth="650" MinHeight="500"
  Background="#151A21" Foreground="#F3F5F7" WindowStartupLocation="CenterScreen">
  <Window.Resources>
@@ -22,6 +23,7 @@
    <TextBlock x:Name="Status" Margin="4,8" TextWrapping="Wrap" Text="Choose a grid size, then start exploration. Slider values stay unchanged until you start."/>
    <DockPanel>
     <Button x:Name="CancelButton" Content="Close" Click="CancelClick" DockPanel.Dock="Left"/>
+    <Button x:Name="RetryButton" Content="Retry generation" Click="RetryClick" Visibility="Collapsed" DockPanel.Dock="Left"/>
     <Button x:Name="FinishButton" Visibility="Collapsed" Content="Finish with selected design" Click="FinishClick" DockPanel.Dock="Right" IsEnabled="False"/>
     <TextBlock x:Name="SessionHint" Visibility="Collapsed" Text="Keep the source documents open. Camera and capture size stay fixed." VerticalAlignment="Center" Margin="12,0" TextWrapping="Wrap" Foreground="#AAB8C8"/>
    </DockPanel>
@@ -45,7 +47,10 @@
     <TextBlock Text="Estimate uses the last solution duration × image count. Viewport redraw, image capture and SPS add time; solve cost can vary, and out-of-range slots are skipped." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,4,0,0"/>
     <TextBlock Text="Uses the active Rhino viewport and camera when you press Start. Frame your model first. Odd grid sizes keep a center candidate; larger grids take longer." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,8,0,0"/>
    </StackPanel>
-   <UniformGrid x:Name="Gallery" Visibility="Collapsed" Rows="5" Columns="5"/>
+   <TabControl x:Name="ExplorationTabs" Visibility="Collapsed" Background="#151A21" Foreground="White" SelectionChanged="ModeChanged">
+    <TabItem Header="Evaluate"><UniformGrid x:Name="Gallery" Rows="5" Columns="5"/></TabItem>
+    <TabItem Header="History"><local:HistoryView x:Name="History"/></TabItem>
+   </TabControl>
   </Grid>
  </DockPanel>
 </Window>

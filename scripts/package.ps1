@@ -19,14 +19,21 @@ Sequential Gallery — Windows x64 / Rhino 8.36+ / .NET 10
 4. Double-click Sequential Gallery, choose Rows and Columns, frame the active
    Rhino viewport, then click Start exploration. The default grid is 5x5.
 5. Select preferred images. Four selections advance to the next plane.
-6. Finish with selected design restores the last selected shape.
+6. Finish restores the last selected shape and automatically saves its image
+   and slider parameters to Desktop/Guts-in-the-loop-results before closing.
 
 For AI rendering, set OPENAI_API_KEY before starting Rhino. Add Params > Util >
 AI Rendering, double-click it, select variables and grid size, then Start.
-Select a cell and press Next to explore. Finish previews the selected crop;
-Save PNG saves it without additional generation or upscaling. API usage applies.
-Retry repeats failed conditions; Regenerate replaces the same matrix conditions.
+Select a cell and press Next to explore. Finish saves its crop, source image,
+prompt and conditions to Desktop/Guts-in-the-loop-results before closing.
+There is no additional generation or upscaling. API usage applies.
+Retry repeats failed conditions; Regenerate adds a variant of the same conditions.
 Cancel stops waiting locally and does not guarantee remote cancellation.
+
+Evaluate and History tabs show current candidates and branching exploration.
+Select a History node to preview; Resume from here restores its state without
+new generation. Repeating an existing cell choice reuses its stored child.
+History is discarded when the window closes; result files are not session saves.
 
 Slider precision/type is preserved. Existing Fillet Edge errors in the
 provided sample are intentionally left unchanged. The sample uses the

@@ -16,7 +16,7 @@ using Rhino.DocObjects;
 
 namespace SequentialGallery;
 
-internal sealed class GrasshopperHost : IDisposable
+internal sealed class GrasshopperHost : IGeometryHost
 {
     private readonly GH_Document document;
     private readonly GH_NumberSlider[] sliders;
@@ -67,6 +67,7 @@ internal sealed class GrasshopperHost : IDisposable
         Validate();
         if (normalized.Length != sliders.Length || normalized.Any(x => !double.IsFinite(x) || x < 0 || x > 1))
             throw new InvalidOperationException("Candidate is out of range.");
+        var values = new decimal[sliders.Length];
         for (int i = 0; i < sliders.Length; i++) {
             decimal value = minimum[i] + (decimal)normalized[i] * (maximum[i] - minimum[i]);
             value = accuracy[i] switch {
@@ -75,10 +76,25 @@ internal sealed class GrasshopperHost : IDisposable
                 GH_SliderAccuracy.Odd => 2 * decimal.Round((value - 1) / 2, 0, MidpointRounding.AwayFromZero) + 1,
                 _ => decimal.Round(value, Math.Clamp(digits[i], 0, 28), MidpointRounding.AwayFromZero)
             };
+            values[i] = Math.Clamp(value, minimum[i], maximum[i]);
+        }
+        return await ApplyValuesAsync(values, cancellation);
+    }
+    public Task<double[]> ApplyRecordedAsync(GeometryVariableRecord[] variables, CancellationToken cancellation) {
+        Validate();
+        if (variables.Length != sliders.Length || variables.Where((value, i) => value.InstanceId != sliders[i].InstanceGuid
+            || value.Value < minimum[i] || value.Value > maximum[i]).Any())
+            throw new InvalidOperationException("Recorded candidate no longer matches the registered sliders.");
+        return ApplyValuesAsync(variables.Select(v => v.Value).ToArray(), cancellation);
+    }
+    private async Task<double[]> ApplyValuesAsync(decimal[] values, CancellationToken cancellation) {
+        cancellation.ThrowIfCancellationRequested();
+        Validate();
+        for (int i = 0; i < sliders.Length; i++) {
             bool raiseEvents = sliders[i].Slider.RaiseEvents;
             sliders[i].Slider.RaiseEvents = false;
             try {
-                sliders[i].SetSliderValue(Math.Clamp(value, minimum[i], maximum[i]));
+                sliders[i].SetSliderValue(values[i]);
                 sliders[i].ExpireSolution(false);
             } finally { sliders[i].Slider.RaiseEvents = raiseEvents; }
         }
@@ -113,6 +129,12 @@ internal sealed class GrasshopperHost : IDisposable
         image.EndInit();
         image.Freeze();
         return image;
+    }
+    public GeometryVariableRecord[] GetVariables(double[] coordinates) {
+        Validate();
+        return sliders.Select((slider, i) => new GeometryVariableRecord(slider.NickName, slider.InstanceGuid,
+            slider.Slider.Value, minimum[i], maximum[i], accuracy[i].ToString(), digits[i], coordinates[i],
+            (double)((slider.Slider.Value - minimum[i]) / (maximum[i] - minimum[i])))).ToArray();
     }
     public void Dispose() => projection.Dispose();
 }

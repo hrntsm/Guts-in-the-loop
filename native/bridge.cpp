@@ -49,6 +49,16 @@ API void* sg_create(int dims, int rows, int columns) {
     return result;
 }
 API void sg_destroy(void* ptr) { delete static_cast<Session*>(ptr); }
+API void* sg_clone(void* ptr) {
+    void* result = nullptr;
+    checked([&] { result = new Session(session(ptr)); });
+    return result;
+}
+API int sg_preference_count(void* ptr) {
+    int result = -1;
+    checked([&] { result = static_cast<int>(session(ptr).optimizer.GetNumPreferenceObservations()); });
+    return result;
+}
 API int sg_grid(void* ptr, double* values, int length) {
     return checked([&] {
         auto& s = session(ptr);

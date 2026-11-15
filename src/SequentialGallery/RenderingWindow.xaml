@@ -1,6 +1,7 @@
 <Window x:Class="SequentialGallery.RenderingWindow" x:ClassModifier="internal"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:SequentialGallery"
  Title="AI Rendering" Width="1100" Height="850" MinWidth="680" MinHeight="580"
  Background="#151A21" Foreground="#F3F5F7" WindowStartupLocation="CenterScreen">
  <Window.Resources>
@@ -36,7 +37,6 @@
     <Button x:Name="NextButton" Content="Next" Click="NextClick" Visibility="Collapsed"/>
     <Button x:Name="FinishButton" Content="Finish" Click="FinishClick" Visibility="Collapsed"/>
     <Button x:Name="ShowPromptButton" Content="Show Prompt" Click="ShowPromptClick" Visibility="Collapsed"/>
-    <Button x:Name="SaveButton" Content="Save PNG" Click="SaveClick" Visibility="Collapsed"/>
    </WrapPanel>
   </StackPanel>
   <Grid>
@@ -68,6 +68,8 @@
     <Button x:Name="StartButton" Content="Start rendering exploration" Click="StartClick" HorizontalAlignment="Left" Margin="0,16,0,0"/>
    </StackPanel>
    </ScrollViewer>
+   <TabControl x:Name="ModeTabs" Visibility="Collapsed" Background="#151A21" BorderBrush="#526174">
+   <TabItem Header="Evaluate">
    <Grid x:Name="RenderingLayout" Visibility="Collapsed">
     <Grid.ColumnDefinitions>
      <ColumnDefinition Width="3*" MinWidth="200"/>
@@ -112,6 +114,9 @@
      </DockPanel>
     </Border>
    </Grid>
+   </TabItem>
+   <TabItem Header="History"><local:HistoryView x:Name="HistoryTree"/></TabItem>
+   </TabControl>
   </Grid>
  </DockPanel>
 </Window>

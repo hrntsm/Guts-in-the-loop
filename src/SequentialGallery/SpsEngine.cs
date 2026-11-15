@@ -24,6 +24,20 @@ internal sealed class SpsEngine : SafeHandleZeroOrMinusOneIsInvalid
     }
     public int Dimensions { get; }
     public int CandidateCount { get; }
+    private SpsEngine(int dimensions, int candidateCount, IntPtr snapshot) : base(true) {
+        Dimensions = dimensions;
+        CandidateCount = candidateCount;
+        SetHandle(snapshot);
+        if (IsInvalid) throw new InvalidOperationException(LastError());
+    }
+    public SpsEngine Clone() => new(Dimensions, CandidateCount, CloneNative(this));
+    public int LearnedPreferenceCount {
+        get {
+            int count = PreferenceCount(this);
+            if (count < 0) throw new InvalidOperationException(LastError());
+            return count;
+        }
+    }
     public double[][] Grid()
     {
         var flat = new double[CandidateCount * Dimensions];
@@ -41,6 +55,10 @@ internal sealed class SpsEngine : SafeHandleZeroOrMinusOneIsInvalid
     private static void Check(int result) { if (result != 0) throw new InvalidOperationException(LastError()); }
     [DllImport(Library, EntryPoint = "sg_create", CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr Create(int dimensions, int rows, int columns);
+    [DllImport(Library, EntryPoint = "sg_clone", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr CloneNative(SpsEngine session);
+    [DllImport(Library, EntryPoint = "sg_preference_count", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int PreferenceCount(SpsEngine session);
     [DllImport(Library, EntryPoint = "sg_destroy", CallingConvention = CallingConvention.Cdecl)]
     private static extern void Destroy(IntPtr session);
     [DllImport(Library, EntryPoint = "sg_last_error", CallingConvention = CallingConvention.Cdecl)]

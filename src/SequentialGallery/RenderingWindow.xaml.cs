@@ -1,18 +1,21 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using Microsoft.Win32;
 
 namespace SequentialGallery;
+
+internal sealed record RenderingHistoryNode(int Id, int? ParentId, int? Cell, string EdgeLabel, RenderingState State, BitmapSource Image);
 
 internal partial class RenderingWindow : Window {
     private readonly Func<byte[]> captureReference;
@@ -27,6 +30,11 @@ internal partial class RenderingWindow : Window {
     private byte[]? reference;
     private BitmapSource? displayedImage, finalCrop;
     private RenderingBatch? displayedBatch, inspectorBatch;
+    private readonly List<RenderingHistoryNode> history = new();
+    private RenderingHistoryNode? activeNode;
+    private int? pendingParentId, pendingCell;
+    private string pendingEdge = "";
+    internal string? LastExportDirectory { get; private set; }
     private string frozenInitialPrompt = "";
     private string frozenNegativePrompt = "";
     private int[] exploredVariables = Array.Empty<int>();
@@ -41,6 +49,8 @@ internal partial class RenderingWindow : Window {
         this.captureReference = captureReference;
         this.createApi = createApi ?? (() => new RenderingApi(Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? ""));
         InitializeComponent();
+        ModeTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, ModeTabs)) UpdateControls(); };
+        HistoryTree.ResumeRequested += ResumeHistory;
         InitialPrompt.Text = RenderingSession.DefaultInitialPrompt;
         NegativePrompt.Text = RenderingSession.DefaultNegativePrompt;
         fixedValueChoices = RenderingSession.Variables.Select(variable => new ComboBox {
@@ -81,12 +91,13 @@ internal partial class RenderingWindow : Window {
         StartButton.IsEnabled = ready && session == null && variables.Count(v => v.IsChecked == true) >= 2;
         GridSummary.Text = $"{Rows * Columns} candidate slots · one image";
         bool hasImage = session?.Displayed != null && displayedImage != null;
-        bool canExplore = ready && !final && hasImage && session?.Pending == null && session?.Faulted == false;
+        bool evaluating = ModeTabs.SelectedIndex == 0;
+        bool canExplore = ready && evaluating && !final && hasImage && session?.Pending == null && session?.Faulted == false;
         NextButton.IsEnabled = canExplore && selected >= 0;
         RegenerateButton.IsEnabled = canExplore;
-        RetryButton.IsEnabled = ready && !final && session?.Pending != null && session.Faulted == false;
+        RetryButton.IsEnabled = ready && evaluating && !final && session?.Pending != null && session.Faulted == false;
         RetryButton.Visibility = session?.Pending != null && !final ? Visibility.Visible : Visibility.Collapsed;
-        FinishButton.IsEnabled = ready && !final && hasImage && selected >= 0;
+        FinishButton.IsEnabled = ready && evaluating && !final && hasImage && selected >= 0;
         CancelButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         BusyProgress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         for (int i = 0; i < variables.Length; i++) {
@@ -96,7 +107,7 @@ internal partial class RenderingWindow : Window {
         RowsChoice.IsEnabled = ColumnsChoice.IsEnabled = ready && session == null;
         InitialPrompt.IsReadOnly = busy || session != null || final;
         NegativePrompt.IsReadOnly = busy || session != null || final;
-        ShowPromptButton.IsEnabled = displayedBatch != null || session?.Pending != null;
+        ShowPromptButton.IsEnabled = evaluating && (displayedBatch != null || session?.Pending != null);
         for (int i = 0; i < cells.Length; i++) {
             bool valid = session?.Displayed?.Valid[i] == true;
             cells[i].IsEnabled = canExplore && valid;
@@ -106,6 +117,7 @@ internal partial class RenderingWindow : Window {
             cells[i].BorderThickness = new Thickness(i == selected ? 6 : 1);
         }
         UpdatePromptInspector();
+        UpdateHistory();
     }
     private async void StartClick(object sender, RoutedEventArgs e) {
         if (busy || session != null || variables.Count(v => v.IsChecked == true) < 2) return;
@@ -124,6 +136,7 @@ internal partial class RenderingWindow : Window {
             frozenNegativePrompt = session.NegativePrompt;
             exploredVariables = indices;
             SetupPanel.Visibility = Visibility.Collapsed;
+            ModeTabs.Visibility = Visibility.Visible;
             RenderingLayout.Visibility = MatrixView.Visibility = VariableSummary.Visibility = ShowPromptButton.Visibility = Visibility.Visible;
             NextButton.Visibility = RegenerateButton.Visibility = FinishButton.Visibility = Visibility.Visible;
             VariableSummary.Text = string.Join(" · ", indices.Select(i => RenderingSession.Variables[i].Name));
@@ -142,6 +155,11 @@ internal partial class RenderingWindow : Window {
     private async void NextClick(object sender, RoutedEventArgs e) {
         if (!NextButton.IsEnabled) return;
         int index = selected;
+        var existing = history.FirstOrDefault(n => n.ParentId == activeNode?.Id && n.Cell == index);
+        if (existing != null) { ResumeHistory(existing.Id); return; }
+        pendingParentId = activeNode?.Id;
+        pendingCell = index;
+        pendingEdge = $"R{index / session!.Columns + 1} C{index % session.Columns + 1}";
         await RunAsync(async token => {
             activity = "Updating the search plane";
             await Task.Run(() => session!.Advance(index));
@@ -151,6 +169,9 @@ internal partial class RenderingWindow : Window {
     }
     private async void RegenerateClick(object sender, RoutedEventArgs e) {
         if (!RegenerateButton.IsEnabled) return;
+        pendingParentId = activeNode?.Id;
+        pendingCell = null;
+        pendingEdge = "Regenerate";
         await RunAsync(async token => {
             session!.Regenerate();
             await GenerateAsync(token);
@@ -169,6 +190,8 @@ internal partial class RenderingWindow : Window {
         if (image.PixelWidth != 1024 || image.PixelHeight != 1024)
             throw new InvalidOperationException("The API returned an unexpected image size. Expected 1024x1024. Retry the same conditions.");
         session.Accept(pending);
+        activeNode = new RenderingHistoryNode(history.Count, pendingParentId, pendingCell, pendingEdge, session.CaptureState(), image);
+        history.Add(activeNode);
         displayedBatch = pending;
         displayedImage = image;
         MatrixImage.Source = image;
@@ -177,6 +200,44 @@ internal partial class RenderingWindow : Window {
         PromptValueScroll.ScrollToHorizontalOffset(0);
         StageLabel.Text = $"Search plane {pending.Plane} · Selection {pending.SelectionStage} of 4";
         Status.Text = $"Ready · {pending.Valid.Count(v => v)} valid cells · {elapsed.Elapsed.TotalSeconds:F1}s. Select a cell, then Next or Finish. Use Regenerate if the layout is unsuitable.";
+    }
+    private void UpdateHistory() {
+        HistoryTree.SetItems(history.Select(node => new HistoryItem(node.Id, node.ParentId,
+            $"Plane {node.State.Batch.Plane} · Step {node.State.Batch.SelectionStage}", node.Image, node.EdgeLabel,
+            HistoryDetails(node))), activeNode?.Id, !busy && !closed && !final);
+    }
+    private string HistoryDetails(RenderingHistoryNode node) {
+        string summary = $"Node {node.Id + 1}\nInitial prompt:\n{frozenInitialPrompt}\n\nNegative prompt:\n{frozenNegativePrompt}\n\nExplored: "
+            + string.Join(", ", exploredVariables.Select(i => RenderingSession.Variables[i].Name))
+            + "\nFixed:\n" + string.Join("\n", Enumerable.Range(0, RenderingSession.Variables.Length).Except(exploredVariables)
+                .Select(i => RenderingSession.Variables[i].Name + ": " + RenderingSession.Variables[i].Describe(node.State.Batch.Values[0][i])));
+        var details = new System.Text.StringBuilder(summary).AppendLine().AppendLine().AppendLine("Candidate values (normalized):");
+        var batch = node.State.Batch;
+        for (int cell = 0; cell < batch.Values.Length; cell++) {
+            details.Append($"R{cell / CellOverlay.Columns + 1} C{cell % CellOverlay.Columns + 1}");
+            if (!batch.Valid[cell]) details.Append(" · Out of range");
+            details.Append(": ").AppendLine(string.Join("; ", exploredVariables.Select(i => RenderingSession.Variables[i].Name
+                + "=" + batch.Values[cell][i].ToString("G6", CultureInfo.InvariantCulture))));
+        }
+        return details.ToString();
+    }
+    private void ResumeHistory(int id) {
+        if (busy || closed || final || session == null) return;
+        var node = history.Single(n => n.Id == id);
+        try { session.RestoreState(node.State); }
+        catch (Exception error) { Status.Text = "Could not restore history: " + error.Message; return; }
+        activeNode = node;
+        pendingParentId = pendingCell = null;
+        pendingEdge = "";
+        displayedBatch = node.State.Batch;
+        displayedImage = node.Image;
+        MatrixImage.Source = displayedImage;
+        selected = -1;
+        inspectorBatch = null;
+        ModeTabs.SelectedIndex = 0;
+        StageLabel.Text = $"Search plane {displayedBatch.Plane} · Selection {displayedBatch.SelectionStage} of 4";
+        Status.Text = "Restored saved candidates. Select a cell to continue; no image request was made.";
+        UpdateControls();
     }
     private void SelectCell(int index) {
         if (busy || final || session?.Pending != null || session?.Faulted != false || session.Displayed == null
@@ -235,7 +296,7 @@ internal partial class RenderingWindow : Window {
             }).ToArray();
             inspectorBatch = batch;
         }
-        bool canSelect = !busy && !final && session?.Pending == null && session?.Faulted == false;
+        bool canSelect = ModeTabs.SelectedIndex == 0 && !busy && !final && session?.Pending == null && session?.Faulted == false;
         for (int i = 0; i < promptCells.Length; i++) {
             promptCells[i].IsEnabled = canSelect && batch.Valid[i];
             promptCells[i].Background = new SolidColorBrush(batch.Valid[i] ? Color.FromRgb(34, 43, 54) : Color.FromRgb(25, 30, 38));
@@ -295,33 +356,44 @@ internal partial class RenderingWindow : Window {
     }
     private void FinishClick(object sender, RoutedEventArgs e) {
         if (!FinishButton.IsEnabled) return;
-        finalCrop = new CroppedBitmap(displayedImage!, CellBounds(displayedImage!.PixelWidth, displayedImage.PixelHeight, session!.Rows, session.Columns, selected));
-        finalCrop.Freeze();
-        final = true;
-        MatrixView.Visibility = NextButton.Visibility = RegenerateButton.Visibility = RetryButton.Visibility = FinishButton.Visibility = Visibility.Collapsed;
-        FinalImage.Source = finalCrop;
-        FinalImage.Visibility = SaveButton.Visibility = Visibility.Visible;
-        StageLabel.Text = "Final rendering preview";
-        Status.Text = $"Selected crop · {finalCrop.PixelWidth}×{finalCrop.PixelHeight} pixels. Save PNG keeps the original generated pixels.";
-        session.Dispose(); session = null;
-        api?.Dispose(); api = null;
-        reference = null;
-        UpdateControls();
-    }
-    private void SaveClick(object sender, RoutedEventArgs e) {
-        if (finalCrop == null) return;
-        var dialog = new SaveFileDialog { Filter = "PNG image (*.png)|*.png", DefaultExt = ".png", FileName = "Rendering.png", AddExtension = true };
-        if (dialog.ShowDialog(this) != true) return;
         try {
-            SavePng(finalCrop, dialog.FileName);
-            Status.Text = "Saved selected rendering as PNG.";
-        } catch (Exception error) { Status.Text = "Could not save PNG: " + error.Message; }
+            finalCrop = new CroppedBitmap(displayedImage!, CellBounds(displayedImage!.PixelWidth, displayedImage.PixelHeight, session!.Rows, session.Columns, selected));
+            finalCrop.Freeze();
+            var batch = displayedBatch!;
+            LastExportDirectory = ResultExport.Save("rendering", directory => {
+                SavePng(finalCrop, Path.Combine(directory, "rendering.png"));
+                File.WriteAllBytes(Path.Combine(directory, "reference.png"), reference!);
+                File.WriteAllText(Path.Combine(directory, "prompt.txt"), batch.Prompt);
+                var metadata = new {
+                    formatVersion = 1, kind = "ai-rendering", createdAt = DateTimeOffset.UtcNow,
+                    initialPrompt = frozenInitialPrompt, negativePrompt = frozenNegativePrompt,
+                    rows = session.Rows, columns = session.Columns,
+                    selectedCell = new { row = selected / session.Columns + 1, column = selected % session.Columns + 1, index = selected, indexBase = 0 },
+                    sourceNode = activeNode!.Id, plane = batch.Plane, step = batch.SelectionStage,
+                    image = new { file = "rendering.png", kind = "selected-cell crop of source matrix", width = finalCrop.PixelWidth, height = finalCrop.PixelHeight },
+                    sourceMatrix = new { width = displayedImage.PixelWidth, height = displayedImage.PixelHeight, promptFile = "prompt.txt" },
+                    referenceImage = "reference.png",
+                    generation = new { model = RenderingApi.Model, size = "1024x1024", quality = "low", outputFormat = "png", count = 1 },
+                    variables = RenderingSession.Variables.Select((variable, i) => new {
+                        name = variable.Name, value = batch.Values[selected][i], explored = exploredVariables.Contains(i), isFixed = !exploredVariables.Contains(i),
+                        description = RenderingSession.DescribeValue(batch.Values[selected], i)
+                    }).ToArray()
+                };
+                File.WriteAllText(Path.Combine(directory, "metadata.json"), JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
+            });
+            final = true;
+            Close();
+        } catch (Exception error) {
+            Status.Text = "Could not save rendering result: " + error.Message + " The result and history were kept. Retry Finish or Close without saving.";
+            UpdateControls();
+        }
     }
-    internal static void SavePng(BitmapSource image, string path) {
-        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
-        using var stream = File.Create(path); encoder.Save(stream);
-    }
+    internal static void SavePng(BitmapSource image, string path) => ResultExport.SavePng(image, path);
     private void CancelClick(object sender, RoutedEventArgs e) => cancellation?.Cancel();
     private void CloseClick(object sender, RoutedEventArgs e) => Close();
-    private void DisposeResources() { timer.Stop(); session?.Dispose(); session = null; api?.Dispose(); api = null; cancellation?.Dispose(); reference = null; }
+    private void DisposeResources() {
+        timer.Stop(); session?.Dispose(); session = null; api?.Dispose(); api = null; cancellation?.Dispose(); reference = null;
+        foreach (var node in history) node.State.Dispose();
+        history.Clear(); activeNode = null;
+    }
 }

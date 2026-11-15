@@ -4,6 +4,21 @@ Compare Grasshopper-generated designs and explore them through user preferences.
 
 ## Language
 
+**Evaluate mode**:
+The tab containing the current candidate grid and the existing selection workflow for an exploration session.
+
+**History mode**:
+The tab showing an exploration session's history as a tree, from which the user can return to an earlier exploration step to revise a choice.
+
+**Exploration branch**:
+A retained path of exploration steps descended from earlier candidate selections. Revising a choice at an earlier step creates a new branch while preserving the previous path for later navigation.
+
+**History node**:
+One displayed candidate grid at a particular exploration step, including intermediate zoom stages. It identifies a point from which the corresponding exploration state can be restored.
+
+**Regeneration variant**:
+An AI rendering history node containing a newly generated matrix for the same candidate conditions and optimizer state as its source node. The source remains available, and either image variant can be used to continue exploration without treating regeneration itself as a preference selection.
+
 **Design variable**:
 A standard Number Slider connected directly to the Variables input. SPS uses continuous coordinates normalized to 0-1; values are rounded to the slider's existing numeric type and precision only when applied.
 
@@ -61,8 +76,8 @@ The rendering variable ordered linearly from spring (0), through summer (1/3) an
 **Weather**:
 The continuous rendering variable from good weather (0) to bad weather (1). Bad-weather precipitation is rain in spring, summer, and autumn, transitioning continuously through sleet between autumn and winter to snow in winter; winter alone does not request snow.
 
-**Final rendering preview**:
-The selected rendering cell cropped from its matrix and displayed after Finish, at the generated resolution. The user can save that crop as a PNG without generating a new image or upscaling it.
+**Final rendering**:
+The selected rendering cell cropped from its source matrix at the generated resolution. Finish saves that crop with its source prompt, input image, and conditions before closing, without another generation or upscaling.
 
 **Pending rendering generation**:
 The fixed reference image, candidate conditions, grid mapping, prompt, and output settings awaiting a successful AI matrix response. Retry resends these conditions without adding another SPS selection or advancing the search again.

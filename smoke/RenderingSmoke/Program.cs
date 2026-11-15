@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -22,6 +23,7 @@ internal static class Program {
             try {
                 SpsEngine.LibraryDirectory = Path.GetFullPath("build/native/out");
                 Directory.CreateDirectory("build/evidence");
+                ResultExport.RootDirectoryOverride = Path.GetFullPath("build/evidence/rendering-results");
                 bool live = args.Length == 2 && args[0] == "--live";
                 int priorRequests = 0;
                 if (!live) {
@@ -157,6 +159,10 @@ internal static class Program {
                     Require(session.Displayed.Prompt == pendingPrompt && session.Displayed.SelectionStage == 2 && Field<int>(window, "selected") == -1, "Regenerate must not advance the search.");
                     SelectCenter(window); previous = Field<BitmapSource>(window, "displayedImage");
                     await SetMode("slow"); Click(window, "NextButton"); await Task.Delay(150);
+                    var tree = (HistoryView)window.FindName("HistoryTree");
+                    var originalNode = Field<RenderingHistoryNode>(window, "activeNode");
+                    tree.Preview(0); tree.ResumeSelected();
+                    Require(ReferenceEquals(originalNode, Field<RenderingHistoryNode>(window, "activeNode")), "Busy history preview must not resume or redirect generation.");
                     Click(window, "CancelButton"); await Wait(window);
                     Require(session.Pending?.SelectionStage == 3 && ReferenceEquals(previous, Field<BitmapSource>(window, "displayedImage")), "Cancel must preserve previous image and pending next conditions.");
                     Click(window, "RetryButton"); await Wait(window);
@@ -170,6 +176,48 @@ internal static class Program {
                     await SetMode("html-error"); Click(window, "RegenerateButton"); await Wait(window);
                     Require(Status(window).Contains("502") && ReferenceEquals(previous, Field<BitmapSource>(window, "displayedImage")), "Non-JSON gateway failures must preserve the image.");
                     Click(window, "RetryButton"); await Wait(window);
+                    var nodes = Field<List<RenderingHistoryNode>>(window, "history");
+                    var learnedNode = Field<RenderingHistoryNode>(window, "activeNode");
+                    var learnedGrid = learnedNode.State.Engine.Grid();
+                    Require(nodes.All(n => n.State.Batch != null) && nodes.Count == 7, "Only seven successfully completed matrices must become history nodes in the ten-call flow.");
+                    foreach (var variant in nodes.Where(n => n.EdgeLabel == "Regenerate")) {
+                        var parent = nodes.Single(n => n.Id == variant.ParentId);
+                        Require(variant.State.Batch.Prompt == parent.State.Batch.Prompt && variant.State.Plane == parent.State.Plane
+                            && variant.State.Zoom == parent.State.Zoom, "Regenerated matrices must remain separate variants at the same optimizer stage.");
+                    }
+                    var root = nodes[0];
+                    var firstChild = nodes.Single(n => n.ParentId == root.Id && n.Cell == 12);
+                    ((TabControl)window.FindName("ModeTabs")).SelectedIndex = 1;
+                    Require(new[] { "NextButton", "RegenerateButton", "FinishButton", "ShowPromptButton", "RetryButton" }
+                        .All(name => !((Button)window.FindName(name)).IsEnabled), "Evaluate actions must be disabled while previewing History.");
+                    tree.Preview(root.Id);
+                    Require(((TextBox)tree.FindName("PreviewDetails")).Text.Contains("R1 C1")
+                        && ((TextBox)tree.FindName("PreviewDetails")).Text.Contains("TimeOfDay="), "History preview must expose per-cell explored values without resuming.");
+                    Capture(window, "build/evidence/rendering-history.png");
+                    tree.ResumeSelected();
+                    Require(ReferenceEquals(session.Displayed, root.State.Batch) && ((TabControl)window.FindName("ModeTabs")).SelectedIndex == 0,
+                        "Explicit Resume must restore the saved batch and switch to Evaluate.");
+                    SelectCenter(window); Click(window, "NextButton"); await Wait(window);
+                    Require(ReferenceEquals(Field<RenderingHistoryNode>(window, "activeNode"), firstChild), "Repeating the same source cell must reuse its child.");
+                    using (var reuseStats = await JsonDocument.ParseAsync(await control.GetStreamAsync("stats")))
+                        Require(reuseStats.RootElement.GetProperty("requests").GetArrayLength() == priorRequests + 10, "History resume and existing-path reuse must not call the image provider.");
+                    tree.Preview(root.Id); tree.ResumeSelected();
+                    int alternative = Array.FindIndex(root.State.Batch.Valid, valid => valid);
+                    Field<Button[]>(window, "cells")[alternative].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Click(window, "NextButton"); await Wait(window);
+                    Require(nodes.Count(n => n.ParentId == root.Id && n.Cell != null) == 2, "A different choice must preserve the original child and add a branch.");
+                    ((TabControl)window.FindName("ModeTabs")).SelectedIndex = 1;
+                    tree.Preview(root.Id);
+                    Capture(window, "build/evidence/rendering-history.png");
+                    tree.Preview(learnedNode.Id); tree.ResumeSelected();
+                    Require(ReferenceEquals(session.Displayed, learnedNode.State.Batch)
+                        && learnedGrid.Zip(learnedNode.State.Engine.Grid()).All(pair => pair.First.SequenceEqual(pair.Second)), "Returning from another branch must preserve the learned node's exact grid.");
+                    SelectCenter(window); await SetMode("slow"); Click(window, "NextButton"); await Task.Delay(150);
+                    tree.Preview(root.Id); Click(window, "CancelButton"); await Wait(window);
+                    tree.ResumeSelected();
+                    Require(session.Pending == null && ReferenceEquals(session.Displayed, root.State.Batch), "Resuming after cancellation must abandon the unresolved pending request.");
+                    await Task.Delay(1800);
+                    Require(ReferenceEquals(session.Displayed, root.State.Batch), "Late cancelled replies must not attach to the restored branch.");
                     using var stats = await JsonDocument.ParseAsync(await control.GetStreamAsync("stats"));
                     var requests = stats.RootElement.GetProperty("requests");
                     Require(requests.EnumerateArray().All(r => r.GetProperty("valid").GetBoolean()), "Every request must match the image edit contract.");
@@ -185,13 +233,31 @@ internal static class Program {
                     Console.WriteLine($"PASS: {requests.GetArrayLength() - priorRequests} real HTTP calls through the Postman stand-in; 429, HTML 502, cancellation, Retry, Regenerate, and plane update outcomes verified.");
                 }
                 Capture(window, live ? "build/evidence/rendering-live-gallery.png" : "build/evidence/rendering-gallery.png");
-                SelectCenter(window); Click(window, "FinishButton");
+                SelectCenter(window);
+                string exportedPrompt = session.Displayed!.Prompt;
+                double[] exportedValues = session.Displayed.Values[12];
+                if (!live) {
+                    string blockedDestination = Path.GetFullPath("build/evidence/rendering-export-blocker");
+                    File.WriteAllText(blockedDestination, "Not a directory.");
+                    ResultExport.RootDirectoryOverride = blockedDestination;
+                    Click(window, "FinishButton");
+                    Require(Status(window).Contains("Could not save") && !Field<bool>(window, "closed")
+                        && Field<List<RenderingHistoryNode>>(window, "history").Count > 0, "Save failure must retain the window and history for retry.");
+                    ResultExport.RootDirectoryOverride = Path.GetFullPath("build/evidence/rendering-results");
+                }
+                Click(window, "FinishButton");
                 var crop = Field<BitmapSource>(window, "finalCrop");
                 Require(crop.PixelWidth is 204 or 205 && crop.PixelHeight is 204 or 205, "Finish must crop original matrix pixels.");
-                Require(((FrameworkElement)window.FindName("SaveButton")).Visibility == Visibility.Visible, "Final preview must offer PNG saving.");
-                if (!live) Require(((FrameworkElement)window.FindName("PromptPanel")).Visibility == Visibility.Visible
-                    && ((System.Windows.Controls.Primitives.UniformGrid)window.FindName("PromptValueGrid")).Children.Count == 25
-                    && ((TextBox)window.FindName("InspectorNegativePrompt")).Text == fixedNegative, "Final crop must retain both source prompt categories and matrix values.");
+                Require(Field<bool>(window, "closed") && Field<List<RenderingHistoryNode>>(window, "history").Count == 0, "Successful Finish must close and release session history.");
+                string exportDirectory = window.LastExportDirectory ?? throw new InvalidOperationException("Finish did not save a result directory.");
+                Require(File.ReadAllBytes(Path.Combine(exportDirectory, "reference.png")).SequenceEqual(reference), "Export must preserve the original reference image bytes.");
+                Require(File.ReadAllText(Path.Combine(exportDirectory, "prompt.txt")) == exportedPrompt, "Export must record the exact source matrix prompt.");
+                using (var metadata = JsonDocument.Parse(File.ReadAllText(Path.Combine(exportDirectory, "metadata.json")))) {
+                    Require(metadata.RootElement.GetProperty("selectedCell").GetProperty("index").GetInt32() == 12, "Export must identify the selected cell.");
+                    Require(metadata.RootElement.GetProperty("variables").EnumerateArray().Select(v => v.GetProperty("value").GetDouble()).SequenceEqual(exportedValues), "Export must include the selected cell's exact parameter vector.");
+                    if (!live) Require(metadata.RootElement.GetProperty("initialPrompt").GetString() == fixedScene
+                        && metadata.RootElement.GetProperty("negativePrompt").GetString() == fixedNegative, "Export must retain both frozen prompt categories.");
+                }
                 string cropPath = live ? "build/evidence/rendering-live-crop.png" : "build/evidence/rendering-crop.png";
                 RenderingWindow.SavePng(crop, cropPath);
                 var saved = RenderingWindow.Decode(File.ReadAllBytes(cropPath));
@@ -201,7 +267,7 @@ internal static class Program {
                 Require(captures == 1, "Next/Retry/Regenerate must never recapture the reference.");
                 Console.WriteLine(live ? "PASS: live OpenAI image edit -> production WPF gallery -> selected crop -> PNG, with one fixed reference capture." : "PASS: idle setup, fixed reference, variable mappings, supported grids, cell selection, final crop, PNG round-trip.");
             } catch (Exception error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; }
-            finally { window?.Close(); control.Dispose(); app.Shutdown(); }
+            finally { window?.Close(); ResultExport.RootDirectoryOverride = null; control.Dispose(); app.Shutdown(); }
         };
         app.Run();
     }

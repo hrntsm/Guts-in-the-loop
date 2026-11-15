@@ -7,10 +7,17 @@ try {
         & git @Arguments
         if ($LASTEXITCODE -ne 0) { throw "git failed: $Arguments" }
     }
+    $spsSource = 'https://github.com/hrntsm/sequential-gallery.git'
+    $spsCommit = 'c1adc392e8a455d9fc3994fe19852a080f79401a'
     if (!(Test-Path third_party/sequential-gallery/.git)) {
-        Invoke-Git -Arguments @('clone', 'https://github.com/yuki-koyama/sequential-gallery.git', 'third_party/sequential-gallery')
+        Invoke-Git -Arguments @('clone', $spsSource, 'third_party/sequential-gallery')
     }
-    Invoke-Git -Arguments @('-C', 'third_party/sequential-gallery', 'checkout', 'cfbf7955ad4b47bb3d3a6854d0b93f643bf20f61')
+    Invoke-Git -Arguments @('-C', 'third_party/sequential-gallery', 'remote', 'set-url', 'origin', $spsSource)
+    & git -C third_party/sequential-gallery cat-file -e "$spsCommit^{commit}" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Invoke-Git -Arguments @('-C', 'third_party/sequential-gallery', 'fetch', 'origin', $spsCommit)
+    }
+    Invoke-Git -Arguments @('-C', 'third_party/sequential-gallery', 'checkout', $spsCommit)
     Invoke-Git -Arguments @('-C', 'third_party/sequential-gallery', 'submodule', 'update', '--init', 'external/sequential-line-search')
     Invoke-Git -Arguments @('-C', 'third_party/sequential-gallery/external/sequential-line-search', 'submodule', 'update', '--init',
         'external/timer', 'external/mathtoolbox', 'external/nlopt', 'external/nlopt-util', 'external/parallel-util')

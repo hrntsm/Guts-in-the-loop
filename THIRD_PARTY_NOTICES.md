@@ -1,10 +1,10 @@
 # Third-party notices
 
-The native DLL links the author's unmodified SPS implementation and its numerical dependencies. Sources are downloaded by `scripts/bootstrap.ps1`; the source repositories retain their own license and copyright notices. The build copies the applicable license files into `artifacts/SequentialGallery/licenses/`.
+The native DLL links the author's SPS implementation with a small isolated-state-copy extension maintained in a pinned fork, plus its numerical dependencies. The preference-learning algorithm is unchanged. Sources are downloaded by `scripts/bootstrap.ps1`; the source repositories retain their own license and copyright notices. The build copies the applicable license files into `artifacts/SequentialGallery/licenses/`.
 
 | Dependency | Source | Version |
 |---|---|---|
-| Sequential Gallery / SPS | https://github.com/yuki-koyama/sequential-gallery | cfbf7955ad4b47bb3d3a6854d0b93f643bf20f61 |
+| Sequential Gallery / SPS | https://github.com/hrntsm/sequential-gallery | c1adc392e8a455d9fc3994fe19852a080f79401a (based on upstream cfbf7955ad4b47bb3d3a6854d0b93f643bf20f61) |
 | Sequential Line Search | https://github.com/yuki-koyama/sequential-line-search | cfdc4f14b5d1e2db780ca68fbae1b70e835504dc |
 | Eigen | https://github.com/eigenteam/eigen-git-mirror | 3.3.7 / cf794d3b741a6278df169e58461f8529f43bce5d |
 | mathtoolbox | https://github.com/yuki-koyama/mathtoolbox | 2fd2302e65768f484e4b81fafb9be7129e1d161c |
