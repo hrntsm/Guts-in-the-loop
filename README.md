@@ -116,6 +116,16 @@ The renderer stays in the ignored `tools/` directory and is not a plugin runtime
 
 ## Package
 
+Run **Gallery: build Yak package** from Zed's `task: spawn`, or run:
+
+```powershell
+./scripts/build-yak.ps1
+```
+
+This builds Release and creates a Windows `.yak` package under `artifacts/yak/`, using `Yak.exe` from the Rhino installation. Pass `-RhinoInstallDir 'D:/Rhino 8'` for another installation. The package version starts at `0.1.0`; update it in `packaging/manifest.yml` for a release. A fresh staging directory includes the plugin, native DLL, icon, and license files; no prepared sample is required. This task only builds locally and does not publish or install the package. See the [official Grasshopper package guide](https://developer.rhino3d.com/guides/yak/creating-a-grasshopper-plugin-package/).
+
+For the existing ZIP distribution, use the following workflow.
+
 After building and preparing the sample in Rhino, run:
 
 ```powershell
