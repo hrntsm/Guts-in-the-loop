@@ -1,10 +1,18 @@
 # Sequential Gallery for Grasshopper
 
-Explore Grasshopper geometry and AI renderings in one component.
+An interactive design exploration tool for Grasshopper that uses Sequential Plane Search (SPS), a Bayesian optimization method, to efficiently optimize geometry and AI renderings by exploring two-dimensional slices of a high-dimensional design space guided by user preferences.
 
 Created for the **AEC Tech NYC 2026 hackathon** by **Hiroaki NATSUME**, **Hiroki YAGINUMA**, **Junichi NAGATA**, and **Yuki NAKANO**.
 
 Requires Windows x64, Rhino 8.36+, and .NET 10.
+
+## Install
+
+1. Open the [GitHub Releases page](https://github.com/hrntsm/Guts-in-the-loop/releases).
+2. Under the latest release's **Assets**, download the Windows `.yak` file.
+3. Launch Rhino 8.36 or later on Windows.
+4. Drag the downloaded `.yak` file from File Explorer onto a Rhino viewport and wait for installation to complete.
+5. Restart Rhino and open Grasshopper, then follow the usage steps below.
 
 ## Optimization
 
