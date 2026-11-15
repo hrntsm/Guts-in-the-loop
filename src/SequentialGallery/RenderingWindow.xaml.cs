@@ -27,6 +27,7 @@ internal partial class RenderingWindow : Window {
     private BitmapSource? displayedImage, finalCrop;
     private RenderingBatch? displayedBatch, inspectorBatch;
     private string frozenInitialPrompt = "";
+    private string frozenNegativePrompt = "";
     private int[] exploredVariables = Array.Empty<int>();
     private bool showingPrompt;
     private Button[] promptCells = Array.Empty<Button>();
@@ -40,6 +41,7 @@ internal partial class RenderingWindow : Window {
         this.createApi = createApi ?? (() => new RenderingApi(Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? ""));
         InitializeComponent();
         InitialPrompt.Text = RenderingSession.DefaultInitialPrompt;
+        NegativePrompt.Text = RenderingSession.DefaultNegativePrompt;
         variables = RenderingSession.Variables.Select(variable => {
             var option = new CheckBox {
                 Content = $"{variable.Name}   ·   {variable.Anchors[0]} → {variable.Anchors[^1]}",
@@ -80,6 +82,7 @@ internal partial class RenderingWindow : Window {
         foreach (var variable in variables) variable.IsEnabled = ready && session == null;
         RowsChoice.IsEnabled = ColumnsChoice.IsEnabled = ready && session == null;
         InitialPrompt.IsReadOnly = busy || session != null || final;
+        NegativePrompt.IsReadOnly = busy || session != null || final;
         ShowPromptButton.IsEnabled = displayedBatch != null || session?.Pending != null;
         for (int i = 0; i < cells.Length; i++) {
             bool valid = session?.Displayed?.Valid[i] == true;
@@ -95,14 +98,16 @@ internal partial class RenderingWindow : Window {
         if (busy || session != null || variables.Count(v => v.IsChecked == true) < 2) return;
         int rows = Rows, columns = Columns;
         string initialPrompt = InitialPrompt.Text;
+        string negativePrompt = NegativePrompt.Text;
         int[] indices = variables.Select((v, i) => (v, i)).Where(x => x.v.IsChecked == true).Select(x => x.i).ToArray();
         await RunAsync(async token => {
             activity = "Initializing rendering exploration";
             api = createApi();
             reference = captureReference();
-            session = await Task.Run(() => new RenderingSession(rows, columns, indices, initialPrompt));
+            session = await Task.Run(() => new RenderingSession(rows, columns, indices, initialPrompt, negativePrompt));
             if (closed) token.ThrowIfCancellationRequested();
             frozenInitialPrompt = session.InitialPrompt;
+            frozenNegativePrompt = session.NegativePrompt;
             exploredVariables = indices;
             SetupPanel.Visibility = Visibility.Collapsed;
             RenderingLayout.Visibility = MatrixView.Visibility = VariableSummary.Visibility = ShowPromptButton.Visibility = Visibility.Visible;
@@ -184,6 +189,7 @@ internal partial class RenderingWindow : Window {
                 + (session?.Pending != null ? " A generation is pending; these values still match the image on the left." : "");
         if (!ReferenceEquals(inspectorBatch, batch)) {
             InspectorInitialPrompt.Text = frozenInitialPrompt.Length == 0 ? "(No initial prompt)" : frozenInitialPrompt;
+            InspectorNegativePrompt.Text = frozenNegativePrompt.Length == 0 ? "(No negative prompt)" : frozenNegativePrompt;
             FullPrompt.Text = batch.Prompt;
             int columns = session?.Columns ?? CellOverlay.Columns;
             PromptValueGrid.Rows = session?.Rows ?? CellOverlay.Rows;

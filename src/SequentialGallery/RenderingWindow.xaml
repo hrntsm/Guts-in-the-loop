@@ -59,7 +59,11 @@
     <TextBlock Text="Initial prompt" FontWeight="SemiBold" Margin="0,8,0,6"/>
     <TextBox x:Name="InitialPrompt" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
      MinHeight="88" MaxHeight="130" MaxLength="2000" Padding="8" Background="#222B36" Foreground="White" BorderBrush="#526174"/>
-    <TextBlock Text="Fixed scene instructions for every candidate and iteration. Example: Keep the building single-storey. Do not show the Rhino viewport grid or axes. Up to 2000 characters; frozen on Start." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,6,0,12"/>
+    <TextBlock Text="Desired conditions for every candidate and iteration. Example: Keep the building single-storey. Up to 2000 characters; frozen on Start." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,6,0,12"/>
+    <TextBlock Text="Negative prompt" FontWeight="SemiBold" Margin="0,8,0,6"/>
+    <TextBox x:Name="NegativePrompt" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+     MinHeight="88" MaxHeight="130" MaxLength="2000" Padding="8" Background="#222B36" Foreground="White" BorderBrush="#526174"/>
+    <TextBlock Text="Results to avoid in every candidate and iteration. Example: altered building geometry, watermarks, viewport grid lines. Up to 2000 characters; frozen on Start." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,6,0,12"/>
     <TextBlock Text="Start captures the active Rhino viewport once. The reference stays fixed; sliders are never changed. One API request creates the complete matrix at 1024×1024, low quality." TextWrapping="Wrap" Foreground="#AAB8C8"/>
     <Button x:Name="StartButton" Content="Start rendering exploration" Click="StartClick" HorizontalAlignment="Left" Margin="0,16,0,0"/>
    </StackPanel>
@@ -86,7 +90,9 @@
        <TextBlock Text="Prompt details" FontSize="18" FontWeight="SemiBold"/>
        <TextBlock x:Name="PromptContext" TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,6,0,10"/>
        <TextBlock Text="Initial prompt" FontWeight="SemiBold" Margin="0,0,0,6"/>
-       <TextBox x:Name="InspectorInitialPrompt" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Height="90" Padding="6" Background="#222B36" Foreground="White"/>
+       <TextBox x:Name="InspectorInitialPrompt" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Height="65" Padding="6" Background="#222B36" Foreground="White"/>
+       <TextBlock Text="Negative prompt" FontWeight="SemiBold" Margin="0,8,0,6"/>
+       <TextBox x:Name="InspectorNegativePrompt" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Height="65" Padding="6" Background="#222B36" Foreground="White"/>
       </StackPanel>
       <Expander DockPanel.Dock="Bottom" Header="Full API prompt" Foreground="White" Margin="0,8,0,0">
        <TextBox x:Name="FullPrompt" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Height="180" Padding="6" Background="#222B36" Foreground="White"/>

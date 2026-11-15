@@ -29,7 +29,10 @@ A separate Grasshopper component for exploring the rendering atmosphere of a fix
 The single capture of the active Rhino viewport taken when the user starts an AI rendering session. It remains fixed throughout that session and is the reference for every generated matrix.
 
 **Initial prompt**:
-The shared scene instructions entered before an AI rendering session starts, such as preserving the storey count or omitting viewport grid lines. The text stays fixed across all candidate matrices and takes priority over conflicting atmosphere instructions without becoming a search variable.
+The desired shared scene conditions entered before an AI rendering session starts, such as preserving the storey count and camera angle. The text stays fixed across all candidate matrices and, together with Negative prompt, takes priority over conflicting atmosphere instructions without becoming a search variable.
+
+**Negative prompt**:
+The unwanted results to avoid across every cell and iteration of an AI rendering session, such as altered geometry, unequal cells, watermarks, extra text, or Rhino viewport overlays. It is captured on Start alongside Initial prompt and included in its own avoidance block in every API prompt, outside the search variables.
 
 **Rendering search session**:
 An independent SPS exploration over two through six selected rendering variables (TimeOfDay, RenderingStyle, Weather, Activity, Vegetation, and Season), using 2x zoom and a plane update after four committed selections. Its gallery axes represent SPS coordinates and need not correspond to individual variables.

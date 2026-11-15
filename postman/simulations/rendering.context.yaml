@@ -39,16 +39,16 @@ assumptions:
     updated_at: '2026-11-14'
   - id: fixed-scene-instructions
     status: supported
-    claim: In the exercised caller flow, the Initial prompt captured on Start was included unchanged in every subsequent matrix request and remained outside the SPS coordinates.
-    reason: The production WPF smoke test edited the setup text, started a session, changed the hidden textbox programmatically, and checked all ten actual HTTP prompts.
-    verification: Initial, Next, Retry, Regenerate, and cancellation/retry requests retained the original single-storey and no-grid instructions. Earlier checks covered seven variables; the prompt-catalog run repeated the ten-call flow and grids up to 9x9 with the new six-variable catalog and 2000 input characters, remaining under the API prompt limit. This proves request construction, not AI obedience to scene constraints.
+    claim: In the exercised caller flow, Initial and Negative prompts captured on Start were included unchanged as separate sections in every subsequent matrix request and remained outside the SPS coordinates.
+    reason: The production WPF smoke test edited both setup fields, started a session, changed both hidden textboxes programmatically, and checked all ten actual HTTP prompts.
+    verification: The separate-prompts run on dirty 95a83a7 retained both captured texts through Next, Retry, Regenerate, and cancellation/retry. Inspector fields and final preview retained the captured texts. Both fields accepted empty strings without restoring defaults, and Negative prompt applied with an empty Initial prompt. Grids up to 9x9 with six variables and 2000 characters in each field remained under the API prompt limit. Earlier runs covered seven variables and then the six-variable catalog with a single 2000-character Initial prompt. This proves request construction, not AI obedience to scene constraints.
     source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingSession.cs
     updated_at: '2026-11-14'
   - id: displayed-prompt-inspector
     status: supported
     claim: In the exercised WPF flow, Show Prompt displayed the captured instructions and exact stored values for the displayed matrix without making another image request.
     reason: The smoke check compared every value-box detail and the full prompt with the displayed batch, synchronized image/value-box selection, and counted real HTTP calls before and after toggling. The value grid mirrors the image layout, with six values grouped inside each box after removing color temperature.
-    verification: Ten-call local flow passed. On a failed Next the inspector retained the previous image's request; successful Retry updated it. Final preview retained its source matrix details. This verifies caller data correspondence, not generated-image interpretation.
+    verification: Ten-call local flow passed, including after adding separate Initial and Negative prompt displays on dirty 95a83a7. On a failed Next the inspector retained the previous image's request; successful Retry updated it. Final preview retained both captured prompts and source matrix details. This verifies caller data correspondence, not generated-image interpretation.
     source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingWindow.xaml.cs
     updated_at: '2026-11-14'
   - id: detailed-prompt-catalog
@@ -68,3 +68,8 @@ fingerprints:
     commit: d1dd8cb
     cli: 1.75.0
     notes: Dirty tree with six-variable embedded prompt catalog and matching value-grid inspector.
+  - id: separate-prompts
+    date: '2026-11-14'
+    commit: 95a83a7
+    cli: 1.75.0
+    notes: Dirty tree with separate Initial and Negative prompt fields, captured inspector values, and labeled request sections.

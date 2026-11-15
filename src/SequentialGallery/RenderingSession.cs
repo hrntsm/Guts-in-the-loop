@@ -20,7 +20,9 @@ internal sealed record RenderingBatch(string Prompt, double[][] Values, bool[] V
 
 internal sealed class RenderingSession : IDisposable {
     public const int InitialPromptLimit = 2000;
+    public const int NegativePromptLimit = 2000;
     public static readonly string DefaultInitialPrompt = RenderingPrompts.Current.DefaultInitialPrompt;
+    public static readonly string DefaultNegativePrompt = RenderingPrompts.Current.DefaultNegativePrompt;
     public static readonly RenderingVariable[] Variables = RenderingPrompts.Current.Variables;
     private readonly SpsEngine engine;
     private readonly int[] variableIndices;
@@ -28,21 +30,26 @@ internal sealed class RenderingSession : IDisposable {
     public int Rows { get; }
     public int Columns { get; }
     public string InitialPrompt { get; }
+    public string NegativePrompt { get; }
     public RenderingBatch? Displayed { get; private set; }
     public RenderingBatch? Pending { get; private set; }
     public bool Faulted { get; private set; }
 
-    public RenderingSession(int rows, int columns, int[] variableIndices, string? initialPrompt = null) {
+    public RenderingSession(int rows, int columns, int[] variableIndices, string? initialPrompt = null, string? negativePrompt = null) {
         initialPrompt ??= DefaultInitialPrompt;
+        negativePrompt ??= DefaultNegativePrompt;
         if (variableIndices.Length < 2 || variableIndices.Length > Variables.Length
             || variableIndices.Distinct().Count() != variableIndices.Length
             || variableIndices.Any(i => i < 0 || i >= Variables.Length))
             throw new ArgumentException("Select at least two different rendering variables.");
         if (initialPrompt.Length > InitialPromptLimit)
             throw new ArgumentException($"Initial prompt must be at most {InitialPromptLimit} characters.");
+        if (negativePrompt.Length > NegativePromptLimit)
+            throw new ArgumentException($"Negative prompt must be at most {NegativePromptLimit} characters.");
         Rows = rows;
         Columns = columns;
         InitialPrompt = initialPrompt.Trim();
+        NegativePrompt = negativePrompt.Trim();
         this.variableIndices = (int[])variableIndices.Clone();
         engine = new SpsEngine(variableIndices.Length, rows, columns);
         try { Pending = BuildBatch(); }
@@ -78,9 +85,12 @@ internal sealed class RenderingSession : IDisposable {
         var prompt = new StringBuilder();
         prompt.AppendLine(definitions.Layout.Replace("{rows}", Rows.ToString()).Replace("{columns}", Columns.ToString()));
         prompt.AppendLine(definitions.SceneRules);
-        if (InitialPrompt.Length > 0) {
+        if (InitialPrompt.Length > 0 || NegativePrompt.Length > 0) {
             prompt.AppendLine(definitions.FixedSceneRules);
-            prompt.AppendLine("[Fixed scene instructions]").AppendLine(InitialPrompt).AppendLine("[/Fixed scene instructions]");
+            if (InitialPrompt.Length > 0)
+                prompt.AppendLine("[Initial prompt]").AppendLine(InitialPrompt).AppendLine("[/Initial prompt]");
+            if (NegativePrompt.Length > 0)
+                prompt.AppendLine("[Negative prompt - avoid these results]").AppendLine(NegativePrompt).AppendLine("[/Negative prompt]");
         }
         prompt.AppendLine(definitions.InteractionRules);
         prompt.AppendLine("Cell keys: " + string.Join("; ", Variables.Select(v => $"{v.Key}={v.Name}")));

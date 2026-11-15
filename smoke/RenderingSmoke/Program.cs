@@ -35,8 +35,13 @@ internal static class Program {
                     : () => new RenderingApi("simulation-only", new Uri("http://localhost:4900/openai/v1/images/edits")));
                 window.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
                 Require(captures == 0 && Field<RenderingSession?>(window, "session") == null, "Opening setup must stay idle.");
-                const string fixedScene = "Keep the building single-storey. Do not draw the Rhino viewport grid or axes.";
-                if (!live) ((TextBox)window.FindName("InitialPrompt")).Text = fixedScene;
+                const string fixedScene = "Keep the building single-storey. Preserve its massing and camera angle.";
+                const string fixedNegative = "altered building geometry, added storeys, watermarks, extra text, Rhino viewport grid lines, axes";
+                Require(((TextBox)window.FindName("NegativePrompt")).Text == RenderingSession.DefaultNegativePrompt, "Negative prompt must load its default from the catalog.");
+                if (!live) {
+                    ((TextBox)window.FindName("InitialPrompt")).Text = fixedScene;
+                    ((TextBox)window.FindName("NegativePrompt")).Text = fixedNegative;
+                }
                 Capture(window, "build/evidence/rendering-setup.png");
                 Click(window, "StartButton"); await Wait(window);
                 Require(captures == 1, "Reference must be captured once.");
@@ -46,11 +51,15 @@ internal static class Program {
                 Require(session.Displayed!.Valid.Length == 25 && session.Displayed.Values.All(v => v.Length == 6), "Default grid must map 25 six-variable conditions.");
                 if (!live) {
                     Require(session.InitialPrompt == fixedScene && session.Displayed.Prompt.Contains(fixedScene), "Initial prompt must be captured and sent in the first matrix request.");
+                    Require(session.NegativePrompt == fixedNegative && session.Displayed.Prompt.Contains("[Negative prompt - avoid these results]" + Environment.NewLine + fixedNegative), "Negative results must be sent in a separately labeled avoidance block.");
                     Require(((TextBox)window.FindName("InitialPrompt")).IsReadOnly, "Initial prompt must be frozen after Start.");
+                    Require(((TextBox)window.FindName("NegativePrompt")).IsReadOnly, "Negative prompt must be frozen after Start.");
                     ((TextBox)window.FindName("InitialPrompt")).Text = "Do not use this changed text in the running session.";
+                    ((TextBox)window.FindName("NegativePrompt")).Text = "Do not use this changed negative text.";
                     Click(window, "ShowPromptButton");
                     Require(((FrameworkElement)window.FindName("PromptPanel")).Visibility == Visibility.Visible, "Show Prompt must open the right-hand panel.");
                     Require(((TextBox)window.FindName("InspectorInitialPrompt")).Text == fixedScene, "Inspector must show the captured initial instructions, not changed setup text.");
+                    Require(((TextBox)window.FindName("InspectorNegativePrompt")).Text == fixedNegative, "Inspector must separately show the captured negative instructions.");
                     var valueGrid = (System.Windows.Controls.Primitives.UniformGrid)window.FindName("PromptValueGrid");
                     Require(valueGrid.Rows == 5 && valueGrid.Columns == 5 && valueGrid.Children.Count == 25, "Inspector must mirror the image's 5x5 arrangement.");
                     for (int i = 0; i < valueGrid.Children.Count; i++)
@@ -80,7 +89,8 @@ internal static class Program {
                             Require(session.Displayed.Prompt.Contains(variable.Key + i + ": " + variable.Descriptions[i]), "Every referenced anchor must be defined in the actual request.");
                     }
                     foreach (int size in new[] {3,5,7,9}) {
-                        using var large = new RenderingSession(size, 9, Enumerable.Range(0, 6).ToArray(), new string('x', RenderingSession.InitialPromptLimit));
+                        using var large = new RenderingSession(size, 9, Enumerable.Range(0, 6).ToArray(),
+                            new string('x', RenderingSession.InitialPromptLimit), new string('y', RenderingSession.NegativePromptLimit));
                         Require(large.Pending!.Prompt.Length <= 32000, "Supported grids must fit API prompt limits.");
                         foreach (int i in Enumerable.Range(0, large.Pending.Values.Length).Where(i => large.Pending.Valid[i] && large.Pending.Values[i][2] > .5)) {
                             string cell = large.Pending.Prompt.Split('\n').Single(line => line.StartsWith($"R{i / 9 + 1}C{i % 9 + 1}: "));
@@ -89,6 +99,10 @@ internal static class Program {
                     }
                     using var subset = new RenderingSession(3, 7, new[] {0,1});
                     Require(subset.Pending!.Values.All(v => v.Skip(2).All(x => x == .5)), "Unselected variables must remain fixed.");
+                    using var noScenePrompts = new RenderingSession(3, 3, new[] {0,1}, "", "");
+                    Require(!noScenePrompts.Pending!.Prompt.Contains("[Initial prompt]") && !noScenePrompts.Pending.Prompt.Contains("[Negative prompt"), "Empty optional fields must not fall back to default prompt blocks.");
+                    using var negativeOnly = new RenderingSession(3, 3, new[] {0,1}, "", fixedNegative);
+                    Require(!negativeOnly.Pending!.Prompt.Contains("[Initial prompt]") && negativeOnly.Pending.Prompt.Contains(fixedNegative), "Negative prompt must apply even when Initial prompt is empty.");
                     SelectCenter(window);
                     Require(Field<int>(window, "selected") == 12 && session.Pending == null, "Click must select without generation.");
                     Require(((Button)valueGrid.Children[12]).BorderBrush == Brushes.Orange, "Image selection must highlight the corresponding value box.");
@@ -130,7 +144,8 @@ internal static class Program {
                     var requests = stats.RootElement.GetProperty("requests");
                     Require(requests.EnumerateArray().All(r => r.GetProperty("valid").GetBoolean()), "Every request must match the image edit contract.");
                     Require(requests.EnumerateArray().Skip(priorRequests).All(r => r.GetProperty("prompt").GetString()!.Contains(fixedScene)
-                        && !r.GetProperty("prompt").GetString()!.Contains("Do not use this changed text")), "Initial instructions must stay unchanged through Next, Retry, Regenerate, and cancellation.");
+                        && r.GetProperty("prompt").GetString()!.Contains(fixedNegative)
+                        && !r.GetProperty("prompt").GetString()!.Contains("Do not use this changed")), "Both prompt categories must stay unchanged through Next, Retry, Regenerate, and cancellation.");
                     Require(requests[priorRequests + 1].GetProperty("prompt").GetString() == requests[priorRequests + 2].GetProperty("prompt").GetString(), "HTTP retry must preserve exact prompt.");
                     Console.WriteLine($"PASS: {requests.GetArrayLength() - priorRequests} real HTTP calls through the Postman stand-in; 429, HTML 502, cancellation, Retry, Regenerate, and plane update outcomes verified.");
                 }
@@ -140,7 +155,8 @@ internal static class Program {
                 Require(crop.PixelWidth is 204 or 205 && crop.PixelHeight is 204 or 205, "Finish must crop original matrix pixels.");
                 Require(((FrameworkElement)window.FindName("SaveButton")).Visibility == Visibility.Visible, "Final preview must offer PNG saving.");
                 if (!live) Require(((FrameworkElement)window.FindName("PromptPanel")).Visibility == Visibility.Visible
-                    && ((System.Windows.Controls.Primitives.UniformGrid)window.FindName("PromptValueGrid")).Children.Count == 25, "Final crop must retain its source matrix prompt and values.");
+                    && ((System.Windows.Controls.Primitives.UniformGrid)window.FindName("PromptValueGrid")).Children.Count == 25
+                    && ((TextBox)window.FindName("InspectorNegativePrompt")).Text == fixedNegative, "Final crop must retain both source prompt categories and matrix values.");
                 string cropPath = live ? "build/evidence/rendering-live-crop.png" : "build/evidence/rendering-crop.png";
                 RenderingWindow.SavePng(crop, cropPath);
                 var saved = RenderingWindow.Decode(File.ReadAllBytes(cropPath));
