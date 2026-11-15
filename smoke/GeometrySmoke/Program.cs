@@ -49,8 +49,16 @@ internal static class Program {
                 Select(pane, 12); Click(pane, "NextButton"); await Wait(pane);
                 Require(pane.HistoryItems.Count == 2 && host.Applies == calls && pane.ActiveHistoryNodeId == 1, "Same-cell Next must reuse the saved child without another solve.");
                 pane.ResumeHistory(0);
+                calls = host.Applies;
                 Select(pane, 0); Click(pane, "NextButton"); await Wait(pane);
                 Require(pane.HistoryItems.Count == 3 && pane.HistoryItems[1].ParentId == 0 && pane.HistoryItems[2].ParentId == 0, "A different selection must preserve both branches.");
+                Require(host.Applies == calls + 25 && Field<Button[]>(pane, "cells").All(cell => cell.IsEnabled),
+                    "A corner zoom must generate all 25 shape images without out-of-range slots.");
+                var cornerGrid = Field<SpsEngine>(pane, "engine").Grid();
+                calls = host.Applies; pane.ResumeHistory(0);
+                Select(pane, 0); Click(pane, "NextButton"); await Wait(pane);
+                Require(host.Applies == calls && Field<SpsEngine>(pane, "engine").Grid().SelectMany(v => v).SequenceEqual(cornerGrid.SelectMany(v => v)),
+                    "History reuse must restore the exact corrected window without solves.");
                 pane.ResumeHistory(1);
                 for (int i = 0; i < 3; i++) { Select(pane, 12); Click(pane, "NextButton"); await Wait(pane); }
                 Require(Field<int>(pane, "plane") == 2 && Field<int>(pane, "zoom") == 0, "Four committed selections must learn a new plane.");

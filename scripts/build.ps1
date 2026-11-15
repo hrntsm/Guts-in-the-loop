@@ -39,6 +39,11 @@ try {
             Copy-Item -Destination $destination
     }
     if ($Smoke) {
+        $windowCheck = "`"$vcvars`" >nul && `"$cmake`" --build build/native --target SequentialGallery.WindowSmoke"
+        & cmd /d /c $windowCheck
+        if ($LASTEXITCODE -ne 0) { throw 'Bounded-window smoke build failed.' }
+        & ./build/native/out/SequentialGallery.WindowSmoke.exe
+        if ($LASTEXITCODE -ne 0) { throw 'Bounded-window smoke check failed.' }
         & dotnet build smoke/NativeSmoke.csproj -c Release --nologo
         if ($LASTEXITCODE -ne 0) { throw 'Smoke build failed.' }
         Copy-Item build/native/out/SequentialGallery.Native.dll smoke/bin/Release/net10.0-windows

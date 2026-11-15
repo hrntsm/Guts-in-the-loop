@@ -10,17 +10,21 @@ internal partial class IntegratedWindow : Window {
     internal GeometryPane? Geometry { get; }
     internal RenderingPane Rendering { get; }
     internal FinalRenderingPane FinalRendering { get; }
-    private bool closing, closed, refreshing, handlingClose, closeScheduled;
+    private readonly Func<bool> confirmClose;
+    private bool closing, closed, refreshing, handlingClose, closeScheduled, closeApproved;
 
     public IntegratedWindow(Func<IGeometryHost>? createGeometryHost, TimeSpan? lastSolution,
-        Func<byte[]> captureReference, Func<RenderingApi>? createApi = null) {
+        Func<byte[]> captureReference, Func<RenderingApi>? createApi = null, Func<bool>? confirmClose = null) {
+        this.confirmClose = confirmClose ?? (() => MessageBox.Show(this,
+            "Your exploration history and any unsaved images will be lost. Close this window?",
+            "Close without saving?", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes);
         InitializeComponent();
         if (createGeometryHost != null) {
             Geometry = new GeometryPane(createGeometryHost, lastSolution);
             GeometrySlot.Content = Geometry;
             Geometry.StateChanged += Refresh;
             Geometry.HandoffRequested += Handoff;
-            Geometry.Finished += RequestClose;
+            Geometry.Finished += ForceClose;
         } else {
             GeometrySlot.Visibility = PaneSplitter.Visibility = Visibility.Collapsed;
             GeometryColumn.Width = PaneGutter.Width = new GridLength(0);
@@ -33,7 +37,7 @@ internal partial class IntegratedWindow : Window {
         FinalRendering = new FinalRenderingPane(Rendering.CreateFinalApi, Geometry == null ? null : Geometry.ApplyCandidateAsync);
         FinalSlot.Content = FinalRendering;
         FinalRendering.StateChanged += Refresh;
-        FinalRendering.Finished += RequestClose;
+        FinalRendering.Finished += ForceClose;
         FinalRendering.BackRequested += () => {
             FinalSlot.Visibility = Visibility.Collapsed; ModeTabs.Visibility = Visibility.Visible;
             ModeTabs.SelectedIndex = 1; Refresh();
@@ -98,6 +102,12 @@ internal partial class IntegratedWindow : Window {
     private void ClosingWindow(object? sender, CancelEventArgs e) {
         handlingClose = true;
         try {
+            if (!closing && !closeApproved) {
+                bool approved = confirmClose();
+                // A successful Finish or document disposal may occur inside the modal loop.
+                if (!approved && !closeApproved) { e.Cancel = true; return; }
+                closeApproved = true;
+            }
             closing = true;
             ModeLabel.Text = "Closing after active work stops. Late image responses will be ignored.";
             Geometry?.Cancel(); Rendering.Cancel(); FinalRendering.Cancel();
@@ -106,5 +116,6 @@ internal partial class IntegratedWindow : Window {
         if (e.Cancel) Refresh();
     }
     private void CloseClick(object sender, RoutedEventArgs e) => RequestClose();
-    internal void RequestClose() { if (!closed) Close(); }
+    internal void RequestClose() { if (!closed && !handlingClose) Close(); }
+    internal void ForceClose() { closeApproved = true; RequestClose(); }
 }

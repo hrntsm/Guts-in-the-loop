@@ -68,6 +68,16 @@ internal static class Program {
                 Require(((FrameworkElement)window.FindName("SetupPanel")).Visibility == Visibility.Collapsed, "Setup must disappear.");
                 Require(session.Displayed!.Valid.Length == 25 && session.Displayed.Values.All(v => v.Length == 6), "Default grid must map 25 six-variable conditions.");
                 if (!live) {
+                    using (var edgeSession = new RenderingSession(3, 7, new[] { 0, 1 })) {
+                        for (int step = 0; step < 4; step++) {
+                            var batch = edgeSession.Pending!;
+                            Require(batch.Valid.All(valid => valid) && batch.Values.All(v => v.All(value => value >= 0 && value <= 1)),
+                                "Repeated rectangular corner zooms must assign valid conditions to every AI cell.");
+                            edgeSession.Accept(batch);
+                            edgeSession.Advance(0);
+                        }
+                        Require(edgeSession.Pending!.Valid.All(valid => valid), "The learned boundary plane must also have a complete AI grid.");
+                    }
                     double[] expectedFixed = { 1, 0, .75, 1 };
                     Require(session.Displayed.Values.All(v => v.Skip(2).SequenceEqual(expectedFixed)), "Every displayed cell must use the chosen weather, activity, vegetation, and season values.");
                     Require(Field<ComboBox[]>(window, "fixedValueChoices").All(c => !c.IsEnabled), "All fixed-value choices must be locked after Start.");
@@ -200,6 +210,15 @@ internal static class Program {
                     Field<Button[]>(window, "cells")[alternative].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Click(window, "NextButton"); await Wait(window);
                     Require(nodes.Count(n => n.ParentId == root.Id && n.Cell != null) == 2, "A different choice must preserve the original child and add a branch.");
+                    Require(session.Displayed!.Valid.All(valid => valid)
+                        && !session.Displayed.Prompt.Contains("Blank neutral placeholder. No rendering."),
+                        "A real corner-zoom HTTP request must assign conditions to all cells without blank out-of-range placeholders.");
+                    var correctedNode = Field<RenderingHistoryNode>(window, "activeNode");
+                    var correctedValues = session.Displayed.Values.SelectMany(v => v).ToArray();
+                    window.ResumeHistory(root.Id); window.ResumeHistory(correctedNode.Id);
+                    Require(session.Displayed!.Values.SelectMany(v => v).SequenceEqual(correctedValues)
+                        && correctedNode.State.Engine.Grid().SelectMany(v => v).SequenceEqual(Field<SpsEngine>(session, "engine").Grid().SelectMany(v => v)),
+                        "Rendering history must restore the corrected window and its exact conditions without another HTTP request.");
                     window.ResumeHistory(learnedNode.Id);
                     Require(ReferenceEquals(session.Displayed, learnedNode.State.Batch)
                         && learnedGrid.Zip(learnedNode.State.Engine.Grid()).All(pair => pair.First.SequenceEqual(pair.Second)), "Returning from another branch must preserve the learned node's exact grid.");

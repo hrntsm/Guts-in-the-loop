@@ -17,7 +17,7 @@ using SequentialGallery;
 internal static class Program {
     private static readonly HttpClient control = new() { BaseAddress = new Uri("http://localhost:4900/openai/") };
     private static RenderingApi Api() => new("simulation-only", new Uri("http://localhost:4900/openai/v1/images/edits"));
-    [STAThread] private static void Main() {
+    [STAThread] private static void Main(string[] args) {
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.Startup += async (_, _) => {
             IntegratedWindow? window = null;
@@ -25,9 +25,12 @@ internal static class Program {
                 SpsEngine.LibraryDirectory = Path.GetFullPath("build/native/out");
                 ResultExport.RootDirectoryOverride = Path.GetFullPath("build/evidence/integrated-results-" + Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(ResultExport.RootDirectoryOverride);
+                if (args.Contains("--close-only")) { await VerifyCloseAsync(); return; }
                 int initialRequests = await RequestCount();
                 var host = new FakeHost(); int viewportCaptures = 0;
-                window = new IntegratedWindow(() => host, TimeSpan.FromMilliseconds(5), () => { viewportCaptures++; return Reference(80); }, Api);
+                int closePrompts = 0;
+                window = new IntegratedWindow(() => host, TimeSpan.FromMilliseconds(5), () => { viewportCaptures++; return Reference(80); }, Api,
+                    () => { closePrompts++; return false; });
                 bool closed = false; window.Closed += (_, _) => closed = true;
                 var geometry = window.Geometry!; var rendering = window.Rendering;
                 Choice(geometry, "RowsChoice", 0); Choice(geometry, "ColumnsChoice", 0);
@@ -97,6 +100,9 @@ internal static class Program {
                 string acceptedPrompt = final.PromptEditor.Text; final.SizeChoice.SelectedIndex = 1;
                 await final.RenderAsync();
                 Require(final.FinishButton.IsEnabled && !closed, "A standalone result must remain open for review before Finish.");
+                window.Close();
+                Require(closePrompts == 1 && !closed && final.FinishButton.IsEnabled && !Field<bool>(window, "closing"),
+                    "Declining close must preserve the unsaved final preview and session.");
                 Capture(window, "build/evidence/integrated-final.png");
                 final.PromptEditor.Text = "Unsent draft must never replace the accepted prompt.";
                 final.SizeChoice.SelectedIndex = 2; final.QualityChoice.SelectedIndex = 0;
@@ -115,7 +121,7 @@ internal static class Program {
                 Require(host.Values.SequenceEqual(sourceA.Variables.Select(v => v.Value)), "Final Finish applies explicitly chosen A, despite conditions originating from B.");
                 ResultExport.RootDirectoryOverride = resultsRoot;
                 await final.FinishAsync(); await Wait(window);
-                Require(closed && final.LastExportDirectory != null, "Successful final Finish saves and closes the whole window.");
+                Require(closed && final.LastExportDirectory != null && closePrompts == 1, "Successful final Finish saves and closes without another confirmation.");
                 string directory = final.LastExportDirectory!;
                 foreach (string name in new[] { "geometry.png", "parameters.json", "rendering.png", "reference.png", "prompt.txt", "metadata.json" })
                     Require(File.Exists(Path.Combine(directory, name)), "Combined result must include " + name);
@@ -133,7 +139,8 @@ internal static class Program {
                 }
                 await Task.Delay(1600);
                 var reference = Reference(120); int captures = 0;
-                window = new IntegratedWindow(null, null, () => { captures++; return reference; }, Api);
+                window = new IntegratedWindow(null, null, () => { captures++; return reference; }, Api,
+                    () => throw new Exception("A successful AI-only Finish must not request close confirmation."));
                 Require(window.Geometry == null && ((ColumnDefinition)window.FindName("GeometryColumn")).Width.Value == 0, "AI-only mode must reserve no empty geometry column.");
                 bool aiClosed = false; window.Closed += (_, _) => aiClosed = true;
                 Click(window.Rendering, "StartButton"); await Wait(window);
@@ -157,17 +164,81 @@ internal static class Program {
                     && !r.GetProperty("prompt").GetString()!.Contains("Do not use this changed setup text")), "All shape runs must reuse the captured AI configuration.");
                 Console.WriteLine("PASS: integrated geometry/AI flow, cached handoff hashes, independent progress, source-specific history reuse, connected graph, source-correct export, failure/retry, and AI-only mode and independent standalone final rendering through eight real HTTP calls.");
             } catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
-            finally { window?.RequestClose(); ResultExport.RootDirectoryOverride = null; control.Dispose(); app.Shutdown(); }
+            finally { window?.ForceClose(); ResultExport.RootDirectoryOverride = null; control.Dispose(); app.Shutdown(); }
         };
         app.Run();
+    }
+    private static async Task VerifyCloseAsync() {
+        IntegratedWindow? window = null;
+        FakeHost? host = null;
+        try {
+            int prompts = 0, captures = 0;
+            bool allow = false, closed = false;
+            host = new FakeHost();
+            window = new IntegratedWindow(() => host, null, () => { captures++; return Reference(80); }, Api,
+                () => { prompts++; return allow; });
+            window.Closed += (_, _) => closed = true;
+            window.Close();
+            Require(prompts == 1 && !closed && !Field<bool>(window, "closing") && captures == 0 && host.Applies == 0,
+                "X-style close before generation must ask and No must leave setup untouched.");
+            Click(window, "CloseButton");
+            Require(prompts == 2 && !closed, "The visible Close action must use the same confirmation.");
+            window.ForceClose();
+            Require(closed && prompts == 2, "Document/component disposal must close without a blocking confirmation.");
+
+            closed = false; prompts = 0;
+            window = new IntegratedWindow(null, null, () => { captures++; return Reference(80); }, Api,
+                () => { prompts++; return true; });
+            window.Closed += (_, _) => closed = true;
+            typeof(RenderingPane).GetMethod("CloseClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(window.Rendering, new object[] { window.Rendering, new RoutedEventArgs() });
+            Require(closed && prompts == 1 && captures == 0, "AI-only pane Close must ask once even before a final image exists.");
+
+            closed = false; prompts = 0; allow = false;
+            host = new FakeHost { PendingApply = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) };
+            window = new IntegratedWindow(() => host, null, () => Reference(80), Api,
+                () => { prompts++; return allow; });
+            window.Closed += (_, _) => closed = true;
+            Choice(window.Geometry!, "RowsChoice", 0); Choice(window.Geometry!, "ColumnsChoice", 0);
+            Click(window.Geometry!, "StartButton");
+            for (int i = 0; i < 1000 && host.Applies == 0; i++) await Task.Delay(10);
+            Require(window.Geometry!.IsBusy && host.Applies == 1, "Busy-close check must reach an in-flight host computation.");
+            window.Close();
+            Require(prompts == 1 && !closed && !Field<bool>(window, "closing")
+                && !Field<CancellationTokenSource>(window.Geometry, "cancellation").IsCancellationRequested,
+                "No during generation must not cancel work or mark the session closing.");
+            allow = true; window.RequestClose();
+            Require(prompts == 2 && !closed && Field<bool>(window, "closing")
+                && Field<CancellationTokenSource>(window.Geometry, "cancellation").IsCancellationRequested,
+                "Yes must cancel waiting and defer closure until active work can stop.");
+            window.Close();
+            Require(prompts == 2 && !closed, "Repeated busy closure must not ask again after approval.");
+            host.PendingApply.SetResult(); await Wait(window);
+            Require(closed && host.Disposed && prompts == 2, "Deferred closure must release the host and ask only once.");
+
+            closed = false;
+            host = new FakeHost();
+            window = new IntegratedWindow(() => host, null, () => Reference(80), Api,
+                () => throw new Exception("A successful geometry Finish must not request close confirmation."));
+            window.Closed += (_, _) => closed = true;
+            Choice(window.Geometry!, "RowsChoice", 0); Choice(window.Geometry!, "ColumnsChoice", 0);
+            Click(window.Geometry!, "StartButton"); await Wait(window);
+            SelectGeometry(window.Geometry!, 4); Click(window.Geometry!, "FinishButton"); await Wait(window);
+            Require(closed && Directory.Exists(window.Geometry!.LastExportPath), "A successful geometry-only Finish must save and close without a prompt.");
+            Console.WriteLine("PASS: unsaved close confirmation before generation, No preserves work, Yes defers busy closure once, lifecycle bypass, and saved geometry Finish bypass. No HTTP requests.");
+        } finally { host?.PendingApply?.TrySetResult(); window?.ForceClose(); }
     }
     private sealed class FakeHost : IGeometryHost {
         public int Dimensions => 2;
         public int Applies;
+        public TaskCompletionSource? PendingApply;
+        public bool Disposed;
         public decimal[] Values = new decimal[2];
         private readonly Guid[] ids = { Guid.NewGuid(), Guid.NewGuid() };
         public async Task<double[]> ApplyAsync(double[] normalized, CancellationToken token) {
             token.ThrowIfCancellationRequested(); Applies++; await Task.Yield();
+            if (PendingApply != null) await PendingApply.Task;
+            token.ThrowIfCancellationRequested();
             Values = normalized.Select(v => decimal.Round((decimal)v * 10, 4)).ToArray();
             return Values.Select(v => (double)(v / 10)).ToArray();
         }
@@ -177,7 +248,7 @@ internal static class Program {
         }
         public BitmapSource Capture() => Image((byte)(Values[0] * 20), (byte)(Values[1] * 20));
         public GeometryVariableRecord[] GetVariables(double[] coordinates) => Values.Select((v, i) => new GeometryVariableRecord("Slider " + i, ids[i], v, 0, 10, "Float", 4, coordinates[i], (double)(v / 10))).ToArray();
-        public void Dispose() { }
+        public void Dispose() => Disposed = true;
     }
     private static BitmapSource Image(byte red, byte green) {
         var pixels = Enumerable.Range(0, 16 * 16).SelectMany(_ => new[] { (byte)150, green, red, (byte)255 }).ToArray();

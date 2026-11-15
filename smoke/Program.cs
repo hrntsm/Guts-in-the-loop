@@ -23,8 +23,23 @@ Require(second.Where((x, i) => !x.SequenceEqual(first[i])).Any(), "Fourth select
 for (int click = 0; click < 4; click++) engine.Select(12);
 Require(engine.Grid().Length == 25, "Repeated plane updates must work.");
 using var boundary = new SpsEngine(3);
+var boundaryChoice = boundary.Grid()[0];
 boundary.Select(0);
-Require(boundary.Grid().Any(x => x.Any(v => v < 0 || v > 1)), "Edge zoom must preserve upstream extrapolation.");
+var bounded = boundary.Grid();
+Require(bounded.All(x => x.All(v => double.IsFinite(v) && v >= 0 && v <= 1)), "Edge zoom must translate the whole grid into bounds.");
+Require(bounded[0].Zip(boundaryChoice).All(pair => Math.Abs(pair.First - pair.Second) < 1e-10), "The selected corner must remain in the shifted grid.");
+Require(bounded[12].Where((value, j) => Math.Abs(value - boundaryChoice[j]) > 1e-6).Any(), "A boundary choice must move away from the grid center.");
+Require(bounded.Select(x => string.Join(",", x.Select(v => v.ToString("R")))).Distinct().Count() == 25,
+    "Boundary correction must not collapse candidates through per-variable clamping.");
+using var boundarySnapshot = boundary.Clone();
+boundary.Select(0);
+Require(boundarySnapshot.Grid().SelectMany(x => x).SequenceEqual(bounded.SelectMany(x => x)), "A corrected window snapshot must remain unchanged after another zoom.");
+var lastChoice = boundary.Grid()[0];
+boundary.Select(0); boundary.Select(0);
+var boundaryPlane = boundary.Grid();
+Require(boundaryPlane.All(x => x.All(v => double.IsFinite(v) && v >= 0 && v <= 1)), "A learned boundary-centered plane must have only in-range candidates.");
+Require(boundaryPlane.Any(x => x.Zip(lastChoice).All(pair => Math.Abs(pair.First - pair.Second) < 1e-9)),
+    "Preference learning must use the displayed corrected candidate, not the uncorrected cell coordinate.");
 using var rectangular = new SpsEngine(3, 3, 7);
 var rectangle = rectangular.Grid();
 Require(rectangle.Length == 21, "Expected 21 candidates for a 3x7 grid.");
@@ -42,7 +57,12 @@ Require(rectangleNext.Where((x, i) => !x.SequenceEqual(rectangle[i])).Any(), "Re
 using var tall = new SpsEngine(3, 9, 3);
 Require(tall.Grid().Length == 27 && tall.Grid()[13].All(x => Math.Abs(x - .5) < 1e-10), "Tall grid must retain its center.");
 tall.Select(0);
-Require(tall.Grid().Any(x => x.Any(v => v < 0 || v > 1)), "Rectangular edge zoom must preserve extrapolation.");
+Require(tall.Grid().All(x => x.All(v => double.IsFinite(v) && v >= 0 && v <= 1)), "Rectangular edge zoom must fit every candidate.");
+for (int step = 0; step < 3; step++) {
+    var grid = tall.Grid();
+    tall.Select(step == 1 ? grid.Length - 1 : 0);
+    Require(tall.Grid().All(x => x.All(v => double.IsFinite(v) && v >= 0 && v <= 1)), "Alternating rectangular corners must remain in range through a learned plane.");
+}
 using var branchSource = new SpsEngine(3, 3, 7);
 for (int click = 0; click < 8; click++) branchSource.Select(10);
 Require(branchSource.LearnedPreferenceCount == 2, "Two learned planes must contain two observations.");
@@ -64,4 +84,4 @@ Require(alternate.LearnedPreferenceCount == 4 && branchSource.LearnedPreferenceC
 using var detached = alternate.Clone();
 alternate.Dispose();
 Require(detached.Grid().Length == 21 && detached.LearnedPreferenceCount == 4, "A cloned handle must survive disposal of its source.");
-Console.WriteLine("PASS: C# / C ABI / author SPS, rectangular grids, zoom, learned planes, boundary extrapolation, exact state clones and branch learning isolation.");
+Console.WriteLine("PASS: C# / C ABI / author SPS, rectangular grids, zoom, bounded edge windows, corrected-coordinate learning, exact state clones and branch learning isolation.");

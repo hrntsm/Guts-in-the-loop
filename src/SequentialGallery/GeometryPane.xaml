@@ -12,7 +12,7 @@
   <StackPanel DockPanel.Dock="Top" Margin="4,0,4,10">
    <TextBlock Text="SHAPE OPTIMIZATION" FontSize="21" FontWeight="SemiBold"/>
    <TextBlock x:Name="PlaneLabel" Text="Setup" Margin="0,8,0,0"/>
-   <TextBlock x:Name="GalleryInstructions" Visibility="Collapsed" Text="Click to select. Next explores around that shape; Use this shape sends it to AI." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,5,0,0"/>
+   <TextBlock x:Name="GalleryInstructions" Visibility="Collapsed" Text="Click to select. Next explores around that shape; Use this shape sends it to AI. Near bounds, the grid shifts and the chosen shape may move away from center." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,5,0,0"/>
   </StackPanel>
   <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
    <ProgressBar x:Name="Progress" Visibility="Collapsed" Height="5"/>

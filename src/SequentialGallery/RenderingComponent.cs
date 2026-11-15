@@ -33,11 +33,11 @@ public sealed class RenderingComponent : GH_Component {
         window.Show();
     }
     public override void RemovedFromDocument(GH_Document document) {
-        window?.RequestClose();
+        window?.ForceClose();
         base.RemovedFromDocument(document);
     }
     public override void DocumentContextChanged(GH_Document document, GH_DocumentContext context) {
-        if (context == GH_DocumentContext.Close || context == GH_DocumentContext.Unloaded) window?.RequestClose();
+        if (context == GH_DocumentContext.Close || context == GH_DocumentContext.Unloaded) window?.ForceClose();
         base.DocumentContextChanged(document, context);
     }
     private sealed class RenderingAttributes(RenderingComponent owner) : GH_ComponentAttributes(owner) {

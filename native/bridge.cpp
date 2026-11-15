@@ -5,26 +5,24 @@
 #include <string>
 #include <memory>
 #include <numeric>
+#include "search-window.hpp"
 
 #define API extern "C" __declspec(dllexport)
 namespace {
 thread_local std::string error;
 struct Session {
     unsigned dims;
-    int rows, columns, radius;
+    int rows, columns, selections = 0;
     sps::Optimizer optimizer;
-    std::vector<sps::AbstractPlane::GridCellIndex> selections;
+    SearchWindow window;
     Session(unsigned n, int r, int c) : dims(n), rows(r), columns(c),
-        radius(std::lcm((r - 1) / 2, (c - 1) / 2)), optimizer(n) {}
-    sps::AbstractPlane::GridCellIndex cell(int index) const {
+        optimizer(n), window(SearchWindow::initial(*optimizer.RetrieveSearchPlane(), r, c)) {}
+    Eigen::Vector2d coordinate(int index) const {
         if (index < 0 || index >= rows * columns) throw std::invalid_argument("Invalid candidate index.");
-        // Map a rectangular grid onto the author's square coordinate lattice.
-        return {(index / columns - rows / 2) * radius / (rows / 2),
-                (index % columns - columns / 2) * radius / (columns / 2)};
+        return window.coordinate(index / columns, index % columns, rows, columns);
     }
     Eigen::VectorXd candidate(int index) const {
-        return optimizer.RetrieveSearchPlane()->CalcGridParameters(
-            cell(index), 2 * radius + 1, 0.5, selections);
+        return optimizer.RetrieveSearchPlane()->CalcParameters(coordinate(index));
     }
 };
 template<class F> int checked(F f) {
@@ -76,14 +74,16 @@ API int sg_select(void* ptr, int index) {
         for (unsigned j = 0; j < s.dims; ++j)
             if (!std::isfinite(x(j)) || x(j) < 0 || x(j) > 1)
                 throw std::invalid_argument("Out of range selection.");
-        if (s.selections.size() < 3) {
-            s.selections.push_back(s.cell(index));
+        if (s.selections < 3) {
+            s.window = s.window.zoom(*s.optimizer.RetrieveSearchPlane(), s.coordinate(index), s.rows, s.columns);
+            ++s.selections;
         } else {
             const auto plane = s.optimizer.RetrieveSearchPlane();
             const auto& v = plane->GetVertices();
             // Same comparisons as the author's gallery: preferred vs center and four vertices.
             s.optimizer.SubmitData(x, {plane->GetCenter(), v[0], v[1], v[2], v[3]});
-            s.selections.clear();
+            s.window = SearchWindow::initial(*s.optimizer.RetrieveSearchPlane(), s.rows, s.columns);
+            s.selections = 0;
         }
     });
 }

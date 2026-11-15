@@ -1,0 +1,7 @@
+# Fit sampling windows within variable bounds
+
+Keep each gallery's explicit two-dimensional sampling rectangle beside its SPS optimizer. Evaluate candidates through the author's piecewise-affine `CalcParameters`; do not change preference learning or clamp individual variable values. A requested 2x zoom stays unchanged when its whole rectangle is valid, including valid extrapolation beyond the original square. Otherwise translate it into its previous certified rectangle, preserving the requested width and selected point. Because the child has half the parent's width, such a contained child exists in exact arithmetic. This is a conservative feasible translation, not a global nearest-center optimization.
+
+Certify the continuous rectangle at its corners, intersections of its edges with the plane's two diagonal seams, and the origin when present. Check actual grid evaluations too, since floating-point arithmetic can differ at sample points. A fresh plane first tries the unchanged canonical square, then one-sided translated windows retaining its origin, and only then smaller widths. Finite failed attempts report an actionable error instead of producing a zero-width grid.
+
+Selection, learning, and cloned History states use the same corrected window. Both geometry and AI share this native bridge policy. The SPS dependency and its existing saved state-copy fork remain unchanged. This supersedes the earlier normal `Out of range` boundary policy; defensive invalid-data checks remain.
