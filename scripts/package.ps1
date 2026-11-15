@@ -49,7 +49,7 @@ provided sample are intentionally left unchanged. The sample uses the
 Fillet Edge component already installed on the development machine.
 Cancel / Close keeps current slider values. Out-of-range cells cannot be selected.
 
-Source, build instructions and Zed debug settings are in the repository README.
+Build instructions and Zed debug settings are in CONTRIBUTING.md in the repository.
 '@ | Set-Content "$package/INSTALL.txt" -Encoding utf8
     Compress-Archive -Path "$package/*" -DestinationPath artifacts/SequentialGallery-PoC.zip -Force
     Write-Host 'Created artifacts/SequentialGallery-PoC.zip'

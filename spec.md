@@ -478,7 +478,7 @@ Verification record: Rhino 8.36.26296.17001 / .NET 10.0.15, using a sample copie
 2. C++ integration for SPS.
 3. WPF gallery UI.
 4. Sample facade Grasshopper definition.
-5. README with build and run instructions.
+5. A minimal README and CONTRIBUTING.md with build, run, and validation instructions.
 
 ### Definition of success
 
