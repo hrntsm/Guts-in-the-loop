@@ -79,12 +79,12 @@
      <ColumnDefinition x:Name="PromptColumn" Width="0"/>
     </Grid.ColumnDefinitions>
     <Grid>
-     <Viewbox x:Name="MatrixView" Visibility="Collapsed" Stretch="Uniform">
+     <local:ImageViewport x:Name="MatrixView" Visibility="Collapsed">
       <Grid Width="1024" Height="1024" Background="#222B36">
        <Image x:Name="MatrixImage" Stretch="Fill"/>
        <UniformGrid x:Name="CellOverlay"/>
       </Grid>
-     </Viewbox>
+     </local:ImageViewport>
      <Image x:Name="FinalImage" Visibility="Collapsed" Stretch="Uniform"/>
     </Grid>
     <GridSplitter x:Name="PromptSplitter" Grid.Column="1" Visibility="Collapsed" Width="6" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="#526174" ResizeBehavior="PreviousAndNext"/>

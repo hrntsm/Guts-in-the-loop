@@ -100,6 +100,13 @@ assumptions:
     verification: On dirty ca474f1, all eight integrated image requests passed with zero build warnings or errors. Declining an X-style close kept the accepted preview and session, followed by successful export without another confirmation. The no-HTTP close-only run passed setup cancellation, visible Close, AI-only Close, busy No preserving work, approved deferred closure asking once, lifecycle bypass, and geometry-only saved Finish. The native MessageBox presentation and physical mouse interaction were not automated; its owned Yes/No and default-No arguments were inspected. No paid requests were made.
     source: src/SequentialGallery/IntegratedWindow.xaml.cs; smoke/IntegratedSmoke/Program.cs
     updated_at: '2026-11-15'
+  - id: scrollable-image-inspection
+    status: supported
+    claim: In the exercised WPF flow, image zoom and two-axis scrolling preserved matrix cell selection, original image dimensions, and generated-result provenance without additional image requests.
+    reason: The production viewer and panes ran in inactive offscreen WPF windows with actual layout and hit testing. The existing stand-in supplied the normal matrix and final PNG responses.
+    verification: On dirty eb1efd6, the eight-call integrated run passed matrix hit testing after horizontal and vertical scrolling, manual zoom across Show Prompt layout changes, full 1536x1024 final-preview inspection, Fit reset, unchanged request counts, accepted-snapshot export, and the existing save/cancel checks. Separate no-HTTP view-only checks passed geometry native-size retention, both scroll offsets, real window resizing, Fit reset after overflow, geometry hit testing, History preview, and monotonic controls at extreme Fit scales. Close-only regression also passed. Release build had zero managed warnings or errors. No paid requests were made; physical mouse interaction inside Rhino and improved AI image fidelity were not established.
+    source: src/SequentialGallery/ImageViewport.cs; smoke/IntegratedSmoke/Program.cs; ignored build/evidence/image-scroll-matrix.png; ignored build/evidence/image-scroll-final.png
+    updated_at: '2026-11-15'
 fingerprints:
   - id: initial-rendering
     date: '2026-11-14'

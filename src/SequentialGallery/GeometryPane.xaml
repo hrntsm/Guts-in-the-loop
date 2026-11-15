@@ -1,6 +1,7 @@
 <UserControl x:Class="SequentialGallery.GeometryPane" x:ClassModifier="internal"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:SequentialGallery"
  Background="#151A21" Foreground="#F3F5F7">
  <UserControl.Resources>
   <Style TargetType="Button">
@@ -43,7 +44,9 @@
      <Button x:Name="StartButton" Content="Start shape exploration" Click="StartClick" HorizontalAlignment="Left" Margin="0,16,0,0"/>
     </StackPanel>
    </ScrollViewer>
-   <UniformGrid x:Name="Gallery" Visibility="Collapsed" Rows="5" Columns="5"/>
+   <local:ImageViewport x:Name="GalleryView" Visibility="Collapsed">
+    <UniformGrid x:Name="Gallery" Visibility="Collapsed" Rows="5" Columns="5"/>
+   </local:ImageViewport>
   </Grid>
  </DockPanel>
 </UserControl>

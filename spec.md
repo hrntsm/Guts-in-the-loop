@@ -261,6 +261,8 @@ Display 25 candidate slots in a separate WPF window, with:
 
 ### 8.2 User actions
 
+**Image viewing:** Start each new candidate grid and final-render image fitted to its available viewport. Provide a fixed `Image zoom` toolbar with `Fit`, `100%`, `−`, and `+`; enlarged content scrolls horizontally and vertically. Mouse wheel input over the image zooms around the pointer, preserving its anchor where scroll bounds permit. Right-button dragging pans the image with movement-cursor feedback and mouse capture; releasing the button, losing capture, hiding/unloading the view, changing its image, or returning to Fit ends the drag. Right dragging never selects or learns a candidate. Toolbar, scrollbar, prompt-text, and History-graph gestures retain their own behavior. Fit follows window resizing and column splitters, while manual image scale remains fixed. Scale the AI image and its cell overlay together so selection indices remain correct after zooming and scrolling. Use original cached captures in geometry Evaluate and full PNG dimensions for AI/final images; History preview zoom uses its stored preview resolution. Image viewing must not generate images, change variables, advance SPS, alter exports, or change the independent History graph zoom.
+
 **Candidate click:** Select and highlight the candidate without advancing the optimizer or recomputing the grid.
 
 **Next:** Commit the selected candidate and zoom. On the fourth committed selection, submit it to SPS and generate the next search plane. `Use this shape` is an independent handoff, as defined in Section 19.

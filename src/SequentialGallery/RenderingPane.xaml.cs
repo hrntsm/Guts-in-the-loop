@@ -187,8 +187,10 @@ internal partial class RenderingPane : UserControl {
         displayedBatch = run.Session.Displayed;
         displayedImage = run.ActiveNode?.Image;
         MatrixImage.Source = displayedImage;
+        MatrixView.FitToWindow();
         SetupPanel.Visibility = Visibility.Collapsed;
         RenderingLayout.Visibility = MatrixView.Visibility = VariableSummary.Visibility = ShowPromptButton.Visibility = Visibility.Visible;
+        if (displayedImage == null) MatrixView.Visibility = Visibility.Collapsed;
         NextButton.Visibility = RegenerateButton.Visibility = ConfirmButton.Visibility = Visibility.Visible;
         VariableSummary.Text = string.Join(" · ", exploredVariables.Select(i => RenderingSession.Variables[i].Name));
         if (cells.Length == 0) {
@@ -239,6 +241,7 @@ internal partial class RenderingPane : UserControl {
         activeNode = new RenderingHistoryNode(history.Count, pendingParentId, pendingCell, pendingEdge, run.Session.CaptureState(), image, run.Key);
         history.Add(activeNode);
         displayedBatch = pending; displayedImage = image; MatrixImage.Source = image;
+        MatrixView.SetSceneSize(image.PixelWidth, image.PixelHeight); MatrixView.Visibility = Visibility.Visible;
         selected = -1; PromptValueScroll.ScrollToTop(); PromptValueScroll.ScrollToHorizontalOffset(0);
         StageLabel.Text = $"Search plane {pending.Plane} · Selection {pending.SelectionStage} of 4";
         Status.Text = $"Ready · {pending.Valid.Count(v => v)} valid cells · {elapsed.Elapsed.TotalSeconds:F1}s. Select a cell, then Next or Confirm selection.";

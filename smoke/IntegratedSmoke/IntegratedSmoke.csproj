@@ -5,6 +5,7 @@
  </PropertyGroup>
  <ItemGroup>
   <Compile Include="Program.cs"/>
+  <Compile Include="../../src/SequentialGallery/ImageViewport.cs" Link="ImageViewport.cs"/>
   <Compile Include="../../src/SequentialGallery/SpsEngine.cs" Link="SpsEngine.cs"/>
   <Compile Include="../../src/SequentialGallery/ExplorationModels.cs" Link="ExplorationModels.cs"/>
   <Compile Include="../../src/SequentialGallery/GeometryPane.xaml.cs" Link="GeometryPane.xaml.cs"/>

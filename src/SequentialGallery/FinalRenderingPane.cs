@@ -27,6 +27,7 @@ internal sealed class FinalRenderingPane : UserControl {
     private readonly Button back = new() { Content = "Back to History" }, cancel = new() { Content = "Cancel generation" };
     private readonly TextBlock provenance = new() { TextWrapping = TextWrapping.Wrap }, status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Image preview = new() { Stretch = Stretch.Uniform }, referenceImage = new() { Height = 100, Stretch = Stretch.Uniform };
+    internal readonly ImageViewport PreviewView = new() { Visibility = Visibility.Collapsed };
     private readonly ProgressBar progress = new() { Height = 5, IsIndeterminate = true, Visibility = Visibility.Collapsed };
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly Stopwatch elapsed = new();
@@ -50,7 +51,8 @@ internal sealed class FinalRenderingPane : UserControl {
         var heading = new TextBlock { Text = "FINAL RENDERING", FontSize = 22, Margin = new Thickness(0, 0, 0, 12) };
         DockPanel.SetDock(heading, Dock.Top); left.Children.Add(heading);
         DockPanel.SetDock(status, Dock.Bottom); left.Children.Add(status);
-        DockPanel.SetDock(progress, Dock.Bottom); left.Children.Add(progress); left.Children.Add(preview); root.Children.Add(left);
+        DockPanel.SetDock(progress, Dock.Bottom); left.Children.Add(progress);
+        PreviewView.Scene = preview; left.Children.Add(PreviewView); root.Children.Add(left);
         var right = new DockPanel(); Grid.SetColumn(right, 1); root.Children.Add(right);
         var actions = new WrapPanel();
         foreach (var button in new[] { back, RenderButton, cancel, FinishButton }) {
@@ -79,6 +81,7 @@ internal sealed class FinalRenderingPane : UserControl {
         if (busy || closed) return;
         if (geometry?.Key == selectedGeometry?.Key && conditions?.Key == selectedConditions.Key) return;
         geometry = selectedGeometry; conditions = selectedConditions; accepted = null; preview.Source = null;
+        PreviewView.Visibility = Visibility.Collapsed;
         LastExportDirectory = null;
         byte[] input = selectedGeometry?.ReferencePng ?? selectedConditions.ReferencePng;
         referenceImage.Source = RenderingPane.Decode(input);
@@ -125,7 +128,8 @@ internal sealed class FinalRenderingPane : UserControl {
             if (image.PixelWidth != int.Parse(dimensions[0]) || image.PixelHeight != int.Parse(dimensions[1]))
                 throw new InvalidOperationException("The API returned an unexpected image size. The previous preview was kept.");
             accepted = new Generation(shape, chosen, reference, prompt, size, quality, png, DateTimeOffset.UtcNow);
-            preview.Source = image; status.Text = $"Preview ready · {size} · {quality}. Finish saves this generation. Edit and Render again to generate a different image.";
+            preview.Source = image; PreviewView.SetSceneSize(image.PixelWidth, image.PixelHeight); PreviewView.Visibility = Visibility.Visible;
+            status.Text = $"Preview ready · {size} · {quality}. Finish saves this generation. Edit and Render again to generate a different image.";
         });
     }
 

@@ -210,7 +210,11 @@ internal partial class IntegratedHistoryView : UserControl {
         }
         PreviewTitle.Text = entry == null ? "Select a history node" : $"{(entry.Geometry ? "Geometry" : "AI")} #{entry.Item.Id + 1} · {entry.Item.Title}"
             + ((entry.Geometry ? activeGeometry : activeRendering) == entry.Item.Id ? " · Active" : " · Preview");
-        PreviewImage.Source = entry?.Item.Image;
+        var image = entry?.Item.Image;
+        if (!ReferenceEquals(PreviewImage.Source, image) && image != null)
+            PreviewView.SetSceneSize(image.PixelWidth, image.PixelHeight);
+        PreviewImage.Source = image;
+        PreviewView.Visibility = image == null ? Visibility.Collapsed : Visibility.Visible;
         PreviewDetails.Text = entry?.Item.Details ?? "Completed candidate grids will appear here.";
         if (entry != null && !entry.Geometry && source != null)
             PreviewDetails.Text = $"Source: geometry #{source.SourceNodeId + 1}, R{source.Cell / source.Columns + 1} C{source.Cell % source.Columns + 1}\n\n" + PreviewDetails.Text;

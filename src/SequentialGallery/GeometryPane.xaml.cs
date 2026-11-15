@@ -79,7 +79,7 @@ internal partial class GeometryPane : UserControl {
         await RunAsync(async token => {
             host = createHost();
             SetupPanel.Visibility = Visibility.Collapsed;
-            Gallery.Visibility = GalleryInstructions.Visibility = Progress.Visibility = Visibility.Visible;
+            GalleryView.Visibility = Gallery.Visibility = GalleryInstructions.Visibility = Progress.Visibility = Visibility.Visible;
             PlaneLabel.Text = "Starting exploration";
             Status.Text = "Initializing Sequential Plane Search…";
             int dimensions = host.Dimensions, rows = Gallery.Rows, columns = Gallery.Columns;
@@ -126,6 +126,7 @@ internal partial class GeometryPane : UserControl {
         UpdateButtons();
     }
     private async Task GenerateAsync(CancellationToken token) {
+        GalleryView.FitToWindow();
         PlaneLabel.Text = $"Search plane {plane} · Selection {zoom + 1} of 4";
         Progress.Value = 0;
         foreach (var cell in cells) { cell.Content = "Waiting"; cell.IsEnabled = false; }
@@ -141,6 +142,8 @@ internal partial class GeometryPane : UserControl {
                 Status.Text = $"Generating candidate {i + 1} / {cells.Length}…";
                 await host!.ApplyAsync(parameters[i], token);
                 images[i] = host.Capture();
+                if (images.Take(i).All(image => image == null))
+                    GalleryView.SetSceneSize(images[i]!.PixelWidth * Gallery.Columns, images[i]!.PixelHeight * Gallery.Rows, reset: false);
                 variableRecords[i] = host.GetVariables(parameters[i]);
                 cells[i].Content = new Image { Source = images[i], Stretch = Stretch.Uniform };
                 cells[i].ToolTip = $"Row {i / Gallery.Columns + 1}, column {i % Gallery.Columns + 1}";
@@ -208,8 +211,14 @@ internal partial class GeometryPane : UserControl {
         UpdateButtons();
     }
     private void DisplayNode(GeometryNode node) {
-        for (int i = 0; i < cells.Length; i++) cells[i].Content = node.Images[i] is byte[] bytes
-            ? new Image { Source = DecodeImage(bytes), Stretch = Stretch.Uniform } : "Out of range";
+        bool sized = false;
+        for (int i = 0; i < cells.Length; i++) {
+            if (node.Images[i] is byte[] bytes) {
+                var image = DecodeImage(bytes);
+                cells[i].Content = new Image { Source = image, Stretch = Stretch.Uniform };
+                if (!sized) { GalleryView.SetSceneSize(image.PixelWidth * Gallery.Columns, image.PixelHeight * Gallery.Rows); sized = true; }
+            } else cells[i].Content = "Out of range";
+        }
         Progress.Value = cells.Length;
     }
     private async Task RunAsync(Func<CancellationToken, Task> operation, bool export = false) {
