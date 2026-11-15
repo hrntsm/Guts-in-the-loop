@@ -129,7 +129,7 @@ Perform preference learning and zooming with the original, unrounded SPS coordin
 
 ### 4.6 Opening the gallery
 
-Double-clicking the component opens the WPF setup UI without starting SPS, recomputing Grasshopper, capturing images, or changing slider values. Users choose the row and column counts, frame the active Rhino viewport, and press `Start exploration`. Only then validate the registered sliders and their ranges, record the viewport and camera, and initialize SPS. Display an error and do not start if no variables are registered or unsupported sliders are included. Grid settings remain fixed until the window is closed.
+Double-clicking the component opens the WPF setup UI without starting SPS, recomputing Grasshopper, capturing images, or changing slider values. Users choose the row and column counts, frame the active Rhino viewport, and press `Start exploration`. Only then validate the registered sliders and their ranges, record the viewport and camera, and initialize SPS. With no registered variables, use AI-only mode. Display an error for exactly one registered variable or unsupported connected sources, as defined in Section 19. Grid settings remain fixed until the window is closed.
 
 ---
 
@@ -261,9 +261,9 @@ Display 25 candidate slots in a separate WPF window, with:
 
 ### 8.2 User actions
 
-**Candidate click:** Center the next search region on the selected image and zoom in.
+**Candidate click:** Select and highlight the candidate without advancing the optimizer or recomputing the grid.
 
-**Fourth click:** Submit the selection to SPS and generate the next search plane.
+**Next:** Commit the selected candidate and zoom. On the fourth committed selection, submit it to SPS and generate the next search plane. `Use this shape` is an independent handoff, as defined in Section 19.
 
 **Finish:** Apply the currently selected candidate to Grasshopper, automatically save its image and slider records as defined in Section 18, and close after successful saving.
 
@@ -403,7 +403,7 @@ Temporary candidate parameter values are acceptable at this stage.
 - Build the authors' SPS implementation on Windows.
 - Call it from C#.
 - Generate 25 candidates from the search plane.
-- Zoom through candidate clicks.
+- Select candidates with a click and commit zoom through Next.
 - Learn preferences after four selections.
 - Generate the next search plane.
 
@@ -461,7 +461,7 @@ Cancellation or errors during generation, or exiting without selecting any candi
 - [x] The Rhino viewport can be captured.
 - [x] WPF displays 25 candidate slots (duplicates from rounding and out-of-range slots are allowed).
 - [x] Search planes are generated using the public SPS implementation.
-- [x] Candidate clicks zoom the search region.
+- [x] Candidate clicks select; Next commits and zooms the search region.
 - [x] The next search plane is generated after four selections.
 - [x] Optimization continues across multiple search planes.
 - [x] The final candidate can be reproduced in Grasshopper.
@@ -508,7 +508,7 @@ https://developer.rhino3d.com/
 
 ## 17. AI rendering exploration
 
-Status: Implemented as a separate AI Rendering component. Section 17.8 records the focused verification and its limits. Geometry exploration behavior is preserved; section 17.9 compares the two workflows.
+Status: rendering behavior and its original standalone implementation are described here. Section 19 defines the current integrated entry point, handoffs, and shared history where they supersede earlier standalone requirements. Section 17.8 preserves earlier verification records and their limits.
 
 ### 17.1 Purpose and scope
 
@@ -516,7 +516,7 @@ Explore the visual atmosphere of a fixed Grasshopper-generated architectural fac
 
 Retain the existing Windows 11, Rhino 8.36+, .NET 10, and WPF environment. Reuse the existing SPS integration where applicable, with independent exploration state. Do not introduce an alternative optimization library.
 
-Confirmed entry point: implement AI rendering exploration as a separate Grasshopper component with its own setup and gallery UI. Keep the existing Sequential Gallery component's finish behavior. Integrating the two workflows is a future goal and is outside this implementation's scope. On Start, capture the active Rhino viewport once as the rendering reference image.
+Confirmed entry point: use the integrated Sequential Gallery component described in Section 19. With no design variables, Start captures the active viewport once for AI-only exploration. In combined mode, `Use this shape` supplies the selected geometry candidate's recorded image. The legacy AI Rendering component ID remains loadable for existing definitions but is hidden from the new-component palette.
 
 Confirmed test scope: manual generation outside the component has already been tried. This PoC must exercise the complete flow from the component, including automatic image-generation requests on Start and Next and displaying the response in its gallery. Exporting a prompt for manual generation and importing the result does not meet this test objective.
 
@@ -630,9 +630,9 @@ The setup screen includes separate optional multiline `Initial prompt` and `Nega
 
 Freeze both texts on Start and include them unchanged in separately labeled blocks of every matrix request's existing `prompt`, including Next, Retry, and Regenerate. Negative prompt is an avoidance instruction within that text, not a separate provider request field. Either field may be empty without restoring its default. Both apply to all valid cells and take priority over conflicting atmosphere conditions; the matrix layout and no-label format requirements remain in force. Neither is an SPS variable or a guarantee of AI compliance. Changing them requires a new session. Show both captured texts separately in the inspector, including while another request is pending or failed and after restoring a history node. Include both texts in the metadata exported on Finish.
 
-On Start, capture the active Rhino viewport once and retain that image throughout rendering exploration. Opening setup does not capture an image or start generation; users can frame the model before Start. Use this same original capture as the reference for every matrix request, even if the live viewport later changes. File-image input is outside the current scope. Do not change Number Sliders during rendering exploration. Share the SPS implementation, not the geometry session's preference or zoom state.
+In AI-only mode, Start captures the active Rhino viewport once. In combined mode, use the explicitly handed-off candidate's recorded image instead. Opening setup does not capture an image or start generation. Keep each rendering exploration's original reference for every matrix request, even if the live viewport or geometry exploration later changes. File-image input is outside the scope. Rendering preferences do not mutate geometry SPS state. Combined Finish applies the rendering source's recorded sliders as defined in Section 19.
 
-The normal geometry finish continues to reapply the last selected slider values and close the window. Do not add an automatic transition or direct image handoff to the rendering component in this scope. A future integrated workflow may add that connection.
+`Use this shape` is the explicit integrated handoff; it does not finish the geometry side or advance its optimizer. Geometry-only Finish applies the currently selected cell, while combined rendering Finish applies that rendering exploration's source geometry. Section 19 defines their shared export and close behavior.
 
 ### 17.4 One matrix image per generation
 
@@ -689,7 +689,7 @@ Use a variable- and grid-selection setup screen followed by a rendering gallery 
 
 The prompt inspector shows the session's captured Initial and Negative prompts in separate fields and a value grid with the same row and column counts as the image. Each value-grid box contains its row/column identifier, validity and all six normalized values together, rather than putting variables in separate table columns. Image and valid value-box selections stay synchronized. Use readable compact labels and numbers inside boxes, with exact round-trip numeric strings, full variable names, descriptions and fixed-variable labels in tooltips and expandable selected-cell details. Scroll larger value grids without reducing text to an unreadable size. Keep an expandable copy of the full API prompt. The inspector follows the batch belonging to the displayed image, including after restoring a history node and when another request is pending or failed. If no image has been received yet, show the pending batch with an explicit pending label. Showing, hiding, resizing, or reading the panel must not call the API or commit an SPS selection.
 
-Confirmed selection behavior: clicking a valid cell only selects and highlights it. Users may revise the selection before pressing Next. Next commits the current selection to SPS and requests the next matrix; clicking alone never advances zoom, adds preference data, or calls the image-generation API. Next requires a valid selection and is unavailable during generation. Keep the existing geometry gallery's immediate-click behavior unchanged.
+Confirmed selection behavior: clicking a valid cell only selects and highlights it. Users may revise the selection before pressing Next. Next commits the current selection to SPS and requests the next matrix; clicking alone never advances zoom, adds preference data, or calls the image-generation API. Next requires a valid selection and is unavailable during generation. The integrated geometry side uses the same select-then-Next behavior (Section 19).
 
 Confirmed final result: Finish confirms the selected cell and crops it from the matrix for automatic result export. The crop is an application-side pixel-region extraction from the original AI response, not a separate generated image or a screenshot of the WPF overlay. Derive crop bounds from the selected row/column and configured grid using the same uniform partition used for hit testing, with integer pixel edges covering the original image. A 1024x1024 image divided into a 5x5 grid yields cells approximately 205x205 pixels. If the generated visual boundaries do not match that partition, the crop may include neighboring content or a drawn gutter; use the agreed manual Regenerate flow rather than claiming automatic visual boundary detection.
 
@@ -709,7 +709,7 @@ Confirmed cancellation behavior: Cancel generation stops waiting for the current
 4. Display the matrix, map cell selections, and implement zoom and preference updates.
 5. Crop and display the final cell.
 
-Deliver a separate AI rendering component, variable setup, candidate generation, SPS integration, AI matrix generation, and its WPF rendering gallery. Direct integration with geometry exploration is deferred.
+Deliver the integrated component, separate geometry and AI evaluation panes, explicit handoffs, per-reference SPS state, and shared connected History view as specified in Section 19.
 
 Out of scope for rendering exploration: individual cell generation, user-defined rendering variables, changing variables mid-session, automatic AI evaluation, image recognition for condition estimation, high-resolution upscaling, full-matrix/history export, a custom renderer, databases, session persistence after closing, switching between multiple AI providers, and developing a new independent optimization algorithm.
 
@@ -756,13 +756,13 @@ The fixed-value-selector revision checked all 29 catalog anchor choices in candi
 
 | Area | Existing geometry implementation | Agreed rendering behavior |
 |---|---|---|
-| Entry and handoff | Finish reapplies the selected sliders and closes the window | Confirmed: separate AI rendering component; capture the active viewport once on Start; future workflow integration deferred |
+| Entry and handoff | Geometry pane in the integrated component; Use this shape passes the selected candidate | AI pane in the same window; no-input AI-only mode captures the viewport on Start |
 | Variables | Direct Number Slider references, at least two | Six predefined atmosphere variables including Season, with watercolor-style coverage; selected subset varies, others use chosen fixed anchors |
 | Search engine | SPS for every dimension count of two or more | Confirmed: reuse existing SPS for all two-through-six-variable selections; no direct-grid exception |
 | Search plane | Authors' plane evaluation through the C ABI | Reuse that evaluation; the proposal's affine equation is only illustrative |
 | Grid | Configurable odd rows and columns, default 5x5 | Confirmed: same settings and default; one AI matrix image contains all configured cells |
 | Images | Recompute and capture once per valid candidate | One fixed reference image and one AI-generated matrix per generation |
-| Selection | A click immediately advances SPS and regenerates candidates | Confirmed: rendering clicks only select; Next commits and advances; geometry behavior stays unchanged |
+| Selection | Click selects; Next commits and advances | Click selects; Next commits and advances; shape handoff is explicit |
 | Boundaries | Extrapolated candidates outside 0-1 are disabled and not captured | Confirmed: keep the same domain, request blank invalid cells, and mask/disable them in WPF; no clamping or semantic extrapolation |
 | Finish | Restore actual applied slider values, export image and slider JSON, then close on success | Crop and export the selected image, input reference, exact prompt and metadata, then close on success |
 | Timing | Last Grasshopper solution duration multiplied by candidate count | Show elapsed request time and an indeterminate busy indicator; do not reuse the geometry estimate |
@@ -785,7 +785,7 @@ The following defaults are confirmed for the initial PoC:
 
 Confirmed request: provide two tabs, `Evaluate` and `History`. Evaluate retains the existing candidate evaluation workflow. History visualizes exploration steps as a tree and allows returning to an earlier step to revise a selection. This supersedes the earlier blanket exclusion of a detailed history UI.
 
-Confirmed scope: add Evaluate and History tabs to both the geometry gallery and the AI rendering window. Each component retains its separate exploration session and history tree. A unified geometry/rendering canvas is not part of this decision.
+History scope: geometry and AI retain independent exploration states and branches. Section 19 integrates their evaluation panes and connects their histories in one shared window and canvas, superseding the original separate-window layout.
 
 Confirmed branching behavior: returning to an earlier candidate grid and choosing a different candidate creates a new branch. Preserve the original descendant path and its history nodes, allowing navigation back to either path. Do not delete or replace the previous branch when revising a choice.
 
@@ -819,10 +819,52 @@ Confirmed busy navigation: allow browsing and previewing completed History nodes
 
 Existing session constraints remain in force: do not change selected variables, fixed values, prompts, or grid dimensions within a session. Preserve the existing checks for original documents, viewport availability, and registered slider bounds, numeric type, and precision; history does not provide a snapshot of the entire editable Grasshopper definition. Definition editing during exploration and restoring an earlier definition are outside this scope. Component/document disposal must end owned work and release history resources even if the user did not explicitly press Close.
 
-Implementation requirement: extend the native boundary to capture and restore isolated optimizer state along with the bridge's within-plane selection history and managed plane/step metadata. The current public bridge has only create/grid/select/destroy, and a shallow copy of the optimizer would share mutable preference data. Do not approximate restoration by replaying selection indices into a freshly initialized stochastic optimizer. If the SPS dependency needs an added state-cloning API, manage that change in a pinned fork, as required by the repository owner's dependency policy; do not leave an untracked modification under downloaded dependencies or change the preference-learning algorithm.
+Implementation requirement: use the native state-cloning boundary to retain isolated optimizer state together with within-plane selections and managed plane/step metadata. The pinned SPS fork deep-copies mutable preference data, the learned model, and the search plane. Do not approximate restoration by replaying indices into a fresh stochastic optimizer, leave untracked dependency changes, or replace the author's preference-learning algorithm.
 
 The owner confirmed this design before implementation. This section governs branching history and final export where it supersedes earlier crop-only export or one-way exploration descriptions. It does not introduce restoration after closing a window.
 
 Validation: native smoke checks and independent review verified exact state copies and isolated preference observations after multiple learned planes. Geometry WPF smoke checks with real SPS and a fake host verified branching, reuse, cancellation recovery, exact recorded-value export, and save failure/retry. Rendering WPF checks and independent review passed twelve local HTTP calls covering history reuse without requests, alternate branches, Regenerate variants, learned-state restoration, late-response rejection, and complete result bundles. No paid AI request was made for this revision.
 
 A real Rhino geometry run used the supplied definition with a 3x3 grid, completed 53 solutions in approximately 13.4 seconds, and confirmed preview/resume and existing-child reuse added no solves. It retained alternate branches and advanced to plane 2, then restored exact recorded slider values after deliberate live-value changes and saved matching JSON/PNG. Slider settings, original wiring, existing Fillet Edge errors, and both sample hashes were preserved. The temporary driver wrote only to ignored build output, including an export-root override; real Desktop redirection and physical mouse panning/zooming were not exercised by this run.
+
+## 19. Integrated geometry and AI rendering
+
+Confirmed request: combine geometry exploration and AI rendering into one Grasshopper component and one window. Display geometry optimization on the left and AI rendering optimization on the right, allowing both workflows to be used in the same window. With no design-variable inputs, provide AI rendering only. This replaces the earlier target of keeping the two features exclusively in separate components.
+
+When both features are available, show their histories in two separate columns, geometry on the left and AI rendering on the right. AI rendering must use the chosen geometry as its reference, and the history must visibly identify the geometry-to-rendering handoff.
+
+Confirmed handoff timing: an explicit `Use this shape` action passes a chosen geometry candidate to the AI side. Keep that rendering reference fixed until the user performs another handoff. Geometry exploration may continue on the left while rendering exploration uses the handed-off shape on the right. Do not update the rendering reference or trigger an AI generation merely because the user makes another geometry selection. Simultaneous exploration means both workflows remain available in the same window, with explicit reference changes rather than automatic coupling on every selection.
+
+Confirmed reference history: handing off a different geometry candidate starts a new AI rendering exploration while retaining all previous rendering histories for the open integrated session. Connect each rendering exploration's starting point to the exact geometry history node and candidate cell used as its reference. History navigation must allow returning to either shape's rendering exploration with its original reference; do not replace older histories or reinterpret their generated images as results for the newly handed-off shape.
+
+Confirmed integrated geometry selection: align the geometry side with rendering selection behavior. Clicking a valid geometry cell only selects and highlights it; `Next` commits that preference and advances geometry SPS. `Use this shape` passes the selected candidate to AI rendering without itself committing a geometry preference, zooming, or generating the next geometry grid. This supersedes immediate-click advancement for the integrated geometry UI. The handoff source is the selected cell in the displayed geometry history node, not an implicitly remembered candidate from the preceding grid.
+
+Confirmed handoff reuse: performing `Use this shape` again for the same geometry history node and candidate cell returns to that candidate's existing AI rendering exploration. Do not create another rendering exploration, reset its learning, or make a new image request merely to revisit the same handoff. Explicit `Regenerate` remains available for another image with the same conditions. Handoff identity is the source history node and cell, rather than visual similarity or equality after slider rounding.
+
+Confirmed handoff execution: for a new geometry source, `Use this shape` starts the first AI matrix generation using the prepared rendering variables, fixed values, prompts, and grid settings on the right. Do not require a second Start action after a valid new handoff. Returning through an existing handoff still restores its recorded rendering exploration without generation. Configuration prerequisites must be satisfied before starting a new rendering request.
+
+Confirmed rendering configuration scope: freeze the explored rendering-variable subset, fixed rendering values, Initial prompt, Negative prompt, and rendering grid at the first AI exploration start. Use that same captured configuration for every handed-off geometry candidate during the open integrated session. Do not introduce per-shape configuration editing. This applies at the first handoff that starts AI generation in combined mode and at Start in AI-only mode; starting geometry exploration alone does not yet freeze the rendering setup.
+
+Confirmed AI-history resumption: restoring an AI history node does not rewind or replace the geometry side's current exploration state or selection. Keep the two active exploration positions independent. Always display the current AI exploration's source geometry image on the rendering side, and emphasize its geometry-to-rendering connection in History so the source remains clear even when the left side has moved elsewhere. History preview alone still changes neither active exploration state.
+
+Confirmed combined Finish: when an AI cell is selected for the final result, save it together with the exact geometry candidate that supplied that AI exploration's reference. Apply that source candidate's recorded slider values to Grasshopper, even if geometry exploration on the left has since reached or selected another candidate. Export the source geometry's variable record alongside the AI image, reference, exact prompt, and metadata, preserving the geometry-to-rendering provenance. Close the integrated window only after successful saving, retaining the existing retryable save-error behavior. Do not silently combine the current left-side candidate with an AI image generated from a different shape, or require a new AI generation merely to Finish the selected result.
+
+Confirmed handoff while busy: keep geometry exploration usable while an AI image request is running, but disable `Use this shape` until the AI operation completes or the user explicitly cancels it. A handoff must not implicitly cancel or replace the ongoing generation. Continue allowing History browsing during generation, with resumption gated as previously agreed. Merely selecting geometry or browsing either history must not redirect the AI response to a different source.
+
+Confirmed geometry-only completion: retain an explicit `Finish geometry only` action in combined mode. It applies the selected geometry candidate, exports its image and slider JSON, and closes only after successful saving, without making an AI generation request. Distinguish this action from finishing a selected rendering and its source geometry. The existence of an integrated rendering side must not require users to generate an AI image before they can finish geometry exploration.
+
+Confirmed integrated History layout: use one shared automatically arranged canvas with two labeled columns, geometry on the left and AI rendering on the right. Within each column, exploration trees progress from top to bottom with branches arranged within that column. Draw cross-column handoff edges from each source geometry node and selected cell to the corresponding AI exploration's start. Use shared panning and zooming rather than separate graph viewports. This supersedes the single-workflow left-to-right orientation from Section 18 for the integrated History view. Keep preview selection distinct from each side's active node.
+
+Confirmed input mode validation: no connected design variables means AI-only mode, using the existing active-viewport reference workflow. Exactly one connected design variable prevents starting and displays an actionable requirement for at least two Number Sliders. Two or more directly connected Number Sliders enable combined mode. Do not silently ignore a single connected variable or introduce a separate one-dimensional search algorithm.
+
+Each new geometry source has a new rendering exploration and learning state; retaining older histories does not transfer their preference observations to another shape. Revisit an existing source with its retained rendering state. Geometry and rendering retain their separately configured grids and independent SPS state. In AI-only mode use the available window area for AI setup, evaluation, and history rather than reserving an empty geometry column.
+
+Keep the existing window-lifetime and export rules: Close discards in-memory settings/history, successful Finish exports automatically beneath Desktop/Guts-in-the-loop-results and closes, and save errors preserve the session for retry. Combined AI results include the source geometry parameter JSON as well as the existing rendering crop, reference, exact matrix prompt, and AI metadata. Geometry-only completion exports the currently selected geometry cell, without committing another preference. Do not add session persistence, output import, or automatic history export.
+
+Confirmed compatibility: promote the existing Sequential Gallery entry point to the integrated component and preserve its component ID and Variables input. Keep the old AI Rendering component ID loadable for existing definitions but hide it from the new-component palette and route its UI to AI-only behavior. Do not add a third public component or a definition migration framework.
+
+The owner confirmed this design before implementation. This section supersedes earlier separate-component, immediate geometry-click advancement, and single-workflow history-layout requirements where they conflict. The integrated window owns independent geometry and rendering progress; changing the visible tab must not dispose either exploration. Closing the actual window cancels both and releases all retained runs and snapshots after in-flight work stops safely.
+
+Validation: GeometrySmoke verifies selection without advancement, explicit Next, cached handoffs, independent peer-busy gating, branch restoration, and export failure/retry. RenderingSmoke passes twelve AI-only regression calls and seven multi-shape calls, including actual request-reference hashes, shared frozen configuration, retained per-source pending state, source restoration, and combined export. IntegratedSmoke passes four HTTP calls with the complete window, including two-column handoff links, geometry progress during AI waiting, AI-only layout, and source-A Finish while the left side has selected B. Independent review repeated all three suites with no mandatory findings. No paid requests were made.
+
+A real Rhino integrated run completed 20 Grasshopper solutions and two local stand-in requests in approximately 22.8 seconds. It confirmed selection and handoff caused no extra solves, geometry advanced during AI generation, source B retained its own AI history, and restoring AI A preserved the left side's B position. Finish restored source A's exact slider values (55, 55, 55, 0.7) and saved a matching six-file combined bundle. Original wiring, Fillet Edge errors, slider bounds/types/precision, and both sample hashes were preserved. The driver used an export override beneath ignored build output; paid image quality and actual Desktop redirection were not exercised.

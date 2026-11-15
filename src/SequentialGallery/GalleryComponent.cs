@@ -22,17 +22,18 @@ public sealed class GalleryComponent : GH_Component
     }
     internal static Bitmap SharedIcon => sharedIcon.Value;
     protected override Bitmap Icon => SharedIcon;
-    private GalleryWindow? window;
+    private IntegratedWindow? window;
     public GalleryComponent() : base("Sequential Gallery", "Gallery",
-        "Explore designs with Sequential Plane Search. Double-click to open the gallery.", "Params", "Util") { }
+        "Explore shape and AI rendering together. Leave Variables empty for AI rendering only. Double-click to set up.", "Params", "Util") { }
     public override Guid ComponentGuid => new("bb44f5ae-9d96-4f92-88ce-411d02711427");
     protected override void RegisterInputParams(GH_InputParamManager p) {
-        p.AddNumberParameter("Variables", "V", "Connect at least two Number Sliders directly. Values are rounded to each slider's precision.", GH_ParamAccess.list);
+        p.AddNumberParameter("Variables", "V", "Leave empty for AI rendering only, or connect at least two Number Sliders for combined shape and rendering exploration.", GH_ParamAccess.list);
         p[0].Optional = true;
     }
     protected override void RegisterOutputParams(GH_OutputParamManager p) { }
     protected override void SolveInstance(IGH_DataAccess da) {
-        Message = $"{Params.Input[0].SourceCount} variables";
+        int count = Params.Input[0].SourceCount;
+        Message = count == 0 ? "AI only" : count == 1 ? "Requires 2+ variables" : $"{count} shape variables + AI";
     }
     public override void CreateAttributes() => m_attributes = new GalleryAttributes(this);
     protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu) {
@@ -54,9 +55,14 @@ public sealed class GalleryComponent : GH_Component
             var library = Grasshopper.Instances.ComponentServer.FindAssemblyByObject(this);
             if (library != null) SpsEngine.LibraryDirectory = System.IO.Path.GetDirectoryName(library.Location);
             var doc = OnPingDocument() ?? throw new InvalidOperationException("No Grasshopper document is open.");
+            int count = Params.Input[0].SourceCount;
+            if (count == 1) throw new InvalidOperationException("Connect at least two Number Sliders for shape exploration, or disconnect Variables for AI rendering only.");
+            if (Params.Input[0].Sources.Any(source => source is not GH_NumberSlider))
+                throw new InvalidOperationException("Variables must connect directly to Number Sliders.");
             TimeSpan? lastSolution = doc.SolutionDepth == 0 && doc.SolutionState != GH_ProcessStep.Aborted
                 && doc.SolutionSpan > TimeSpan.Zero ? doc.SolutionSpan : null;
-            window = new GalleryWindow(() => new GrasshopperHost(doc, Params.Input[0].Sources), lastSolution);
+            Func<IGeometryHost>? geometry = count == 0 ? null : () => new GrasshopperHost(doc, Params.Input[0].Sources);
+            window = new IntegratedWindow(geometry, lastSolution, RenderingHost.CaptureReference);
             window.Closed += (_, _) => window = null;
             window.Show();
         } catch (Exception e) {

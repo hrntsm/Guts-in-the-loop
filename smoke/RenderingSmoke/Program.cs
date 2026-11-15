@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
@@ -19,7 +20,7 @@ internal static class Program {
     [STAThread] private static void Main(string[] args) {
         var app = new Application();
         app.Startup += async (_, _) => {
-            RenderingWindow? window = null;
+            RenderingPane? window = null;
             try {
                 SpsEngine.LibraryDirectory = Path.GetFullPath("build/native/out");
                 Directory.CreateDirectory("build/evidence");
@@ -32,9 +33,10 @@ internal static class Program {
                 }
                 byte[] reference = live ? File.ReadAllBytes(args[1]) : MakeReference();
                 int captures = 0;
-                window = new RenderingWindow(() => { captures++; return reference; }, live
+                window = new RenderingPane(() => { captures++; return reference; }, live
                     ? () => new RenderingApi(Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "")
                     : () => new RenderingApi("simulation-only", new Uri("http://localhost:4900/openai/v1/images/edits")));
+                window.Finished += window.Shutdown;
                 window.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
                 Require(captures == 0 && Field<RenderingSession?>(window, "session") == null, "Opening setup must stay idle.");
                 const string fixedScene = "Keep the building single-storey. Preserve its massing and camera angle.";
@@ -159,9 +161,9 @@ internal static class Program {
                     Require(session.Displayed.Prompt == pendingPrompt && session.Displayed.SelectionStage == 2 && Field<int>(window, "selected") == -1, "Regenerate must not advance the search.");
                     SelectCenter(window); previous = Field<BitmapSource>(window, "displayedImage");
                     await SetMode("slow"); Click(window, "NextButton"); await Task.Delay(150);
-                    var tree = (HistoryView)window.FindName("HistoryTree");
+
                     var originalNode = Field<RenderingHistoryNode>(window, "activeNode");
-                    tree.Preview(0); tree.ResumeSelected();
+                    window.ResumeHistory(0);
                     Require(ReferenceEquals(originalNode, Field<RenderingHistoryNode>(window, "activeNode")), "Busy history preview must not resume or redirect generation.");
                     Click(window, "CancelButton"); await Wait(window);
                     Require(session.Pending?.SelectionStage == 3 && ReferenceEquals(previous, Field<BitmapSource>(window, "displayedImage")), "Cancel must preserve previous image and pending next conditions.");
@@ -187,40 +189,31 @@ internal static class Program {
                     }
                     var root = nodes[0];
                     var firstChild = nodes.Single(n => n.ParentId == root.Id && n.Cell == 12);
-                    ((TabControl)window.FindName("ModeTabs")).SelectedIndex = 1;
-                    Require(new[] { "NextButton", "RegenerateButton", "FinishButton", "ShowPromptButton", "RetryButton" }
-                        .All(name => !((Button)window.FindName(name)).IsEnabled), "Evaluate actions must be disabled while previewing History.");
-                    tree.Preview(root.Id);
-                    Require(((TextBox)tree.FindName("PreviewDetails")).Text.Contains("R1 C1")
-                        && ((TextBox)tree.FindName("PreviewDetails")).Text.Contains("TimeOfDay="), "History preview must expose per-cell explored values without resuming.");
-                    Capture(window, "build/evidence/rendering-history.png");
-                    tree.ResumeSelected();
-                    Require(ReferenceEquals(session.Displayed, root.State.Batch) && ((TabControl)window.FindName("ModeTabs")).SelectedIndex == 0,
-                        "Explicit Resume must restore the saved batch and switch to Evaluate.");
+                    Require(window.HistoryItems[0].Details.Contains("R1 C1") && window.HistoryItems[0].Details.Contains("TimeOfDay="), "History details must expose per-cell values without mutation.");
+                    window.ResumeHistory(root.Id);
+                    Require(ReferenceEquals(session.Displayed, root.State.Batch), "Explicit Resume must restore the saved batch.");
                     SelectCenter(window); Click(window, "NextButton"); await Wait(window);
                     Require(ReferenceEquals(Field<RenderingHistoryNode>(window, "activeNode"), firstChild), "Repeating the same source cell must reuse its child.");
                     using (var reuseStats = await JsonDocument.ParseAsync(await control.GetStreamAsync("stats")))
                         Require(reuseStats.RootElement.GetProperty("requests").GetArrayLength() == priorRequests + 10, "History resume and existing-path reuse must not call the image provider.");
-                    tree.Preview(root.Id); tree.ResumeSelected();
+                    window.ResumeHistory(root.Id);
                     int alternative = Array.FindIndex(root.State.Batch.Valid, valid => valid);
                     Field<Button[]>(window, "cells")[alternative].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Click(window, "NextButton"); await Wait(window);
                     Require(nodes.Count(n => n.ParentId == root.Id && n.Cell != null) == 2, "A different choice must preserve the original child and add a branch.");
-                    ((TabControl)window.FindName("ModeTabs")).SelectedIndex = 1;
-                    tree.Preview(root.Id);
-                    Capture(window, "build/evidence/rendering-history.png");
-                    tree.Preview(learnedNode.Id); tree.ResumeSelected();
+                    window.ResumeHistory(learnedNode.Id);
                     Require(ReferenceEquals(session.Displayed, learnedNode.State.Batch)
                         && learnedGrid.Zip(learnedNode.State.Engine.Grid()).All(pair => pair.First.SequenceEqual(pair.Second)), "Returning from another branch must preserve the learned node's exact grid.");
                     SelectCenter(window); await SetMode("slow"); Click(window, "NextButton"); await Task.Delay(150);
-                    tree.Preview(root.Id); Click(window, "CancelButton"); await Wait(window);
-                    tree.ResumeSelected();
+                    Click(window, "CancelButton"); await Wait(window); window.ResumeHistory(root.Id);
                     Require(session.Pending == null && ReferenceEquals(session.Displayed, root.State.Batch), "Resuming after cancellation must abandon the unresolved pending request.");
                     await Task.Delay(1800);
                     Require(ReferenceEquals(session.Displayed, root.State.Batch), "Late cancelled replies must not attach to the restored branch.");
                     using var stats = await JsonDocument.ParseAsync(await control.GetStreamAsync("stats"));
                     var requests = stats.RootElement.GetProperty("requests");
                     Require(requests.EnumerateArray().All(r => r.GetProperty("valid").GetBoolean()), "Every request must match the image edit contract.");
+                    Require(requests.EnumerateArray().Skip(priorRequests).All(r => r.GetProperty("referenceSha256").GetString() == ReferenceHash(reference)),
+                        "Every AI-only request must send the same captured reference bytes.");
                     Require(requests.EnumerateArray().Skip(priorRequests).All(r => r.GetProperty("prompt").GetString()!.Contains(fixedScene)
                         && r.GetProperty("prompt").GetString()!.Contains(fixedNegative)
                         && !r.GetProperty("prompt").GetString()!.Contains("Do not use this changed")), "Both prompt categories must stay unchanged through Next, Retry, Regenerate, and cancellation.");
@@ -240,12 +233,12 @@ internal static class Program {
                     string blockedDestination = Path.GetFullPath("build/evidence/rendering-export-blocker");
                     File.WriteAllText(blockedDestination, "Not a directory.");
                     ResultExport.RootDirectoryOverride = blockedDestination;
-                    Click(window, "FinishButton");
+                    Click(window, "FinishButton"); await Wait(window);
                     Require(Status(window).Contains("Could not save") && !Field<bool>(window, "closed")
                         && Field<List<RenderingHistoryNode>>(window, "history").Count > 0, "Save failure must retain the window and history for retry.");
                     ResultExport.RootDirectoryOverride = Path.GetFullPath("build/evidence/rendering-results");
                 }
-                Click(window, "FinishButton");
+                Click(window, "FinishButton"); await Wait(window);
                 var crop = Field<BitmapSource>(window, "finalCrop");
                 Require(crop.PixelWidth is 204 or 205 && crop.PixelHeight is 204 or 205, "Finish must crop original matrix pixels.");
                 Require(Field<bool>(window, "closed") && Field<List<RenderingHistoryNode>>(window, "history").Count == 0, "Successful Finish must close and release session history.");
@@ -259,47 +252,146 @@ internal static class Program {
                         && metadata.RootElement.GetProperty("negativePrompt").GetString() == fixedNegative, "Export must retain both frozen prompt categories.");
                 }
                 string cropPath = live ? "build/evidence/rendering-live-crop.png" : "build/evidence/rendering-crop.png";
-                RenderingWindow.SavePng(crop, cropPath);
-                var saved = RenderingWindow.Decode(File.ReadAllBytes(cropPath));
+                RenderingPane.SavePng(crop, cropPath);
+                var saved = RenderingPane.Decode(File.ReadAllBytes(cropPath));
                 Require(saved.PixelWidth == crop.PixelWidth && saved.PixelHeight == crop.PixelHeight, "PNG save must preserve crop dimensions.");
-                var last = RenderingWindow.CellBounds(1024, 1024, 5, 5, 24);
+                var last = RenderingPane.CellBounds(1024, 1024, 5, 5, 24);
                 Require(last.X + last.Width == 1024 && last.Y + last.Height == 1024, "Integer crop edges must cover the final pixel.");
                 Require(captures == 1, "Next/Retry/Regenerate must never recapture the reference.");
+                if (!live) await CheckHandoffsAsync();
                 Console.WriteLine(live ? "PASS: live OpenAI image edit -> production WPF gallery -> selected crop -> PNG, with one fixed reference capture." : "PASS: idle setup, fixed reference, variable mappings, supported grids, cell selection, final crop, PNG round-trip.");
             } catch (Exception error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; }
-            finally { window?.Close(); ResultExport.RootDirectoryOverride = null; control.Dispose(); app.Shutdown(); }
+            finally { window?.Shutdown(); ResultExport.RootDirectoryOverride = null; control.Dispose(); app.Shutdown(); }
         };
         app.Run();
     }
-    private static T Field<T>(object target, string name) => (T)target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(target)!;
-    private static string Status(RenderingWindow window) => ((TextBlock)window.FindName("Status")).Text;
-    private static void Click(RenderingWindow window, string name) {
+    private static async Task CheckHandoffsAsync() {
+        var pane = new RenderingPane(() => throw new InvalidOperationException("Combined mode must not capture the live viewport."),
+            () => new RenderingApi("simulation-only", new Uri("http://localhost:4900/openai/v1/images/edits")), integratedMode: true);
+        bool finished = false;
+        pane.Finished += () => { finished = true; pane.Shutdown(); };
+        try {
+            int before = await RequestCount();
+            var sourceA = MakeCandidate(4, 12, 15, MakeReference());
+            var sourceB = MakeCandidate(7, 3, 29, MakeReference(80));
+            var sourceC = MakeCandidate(8, 6, 42, MakeReference(140));
+            Require(((Button)pane.FindName("StartButton")).Visibility == Visibility.Collapsed, "Combined AI setup must wait for an explicit geometry handoff.");
+            await pane.UseShapeAsync(sourceA);
+            Require(pane.CurrentSource!.Key == sourceA.Key && pane.HistoryItems.Count == 1, "First shape handoff must generate one linked root.");
+            var rootA = pane.ActiveHistoryNodeId!.Value;
+            var sessionA = Field<RenderingSession>(pane, "session");
+            SelectCenter(pane); Click(pane, "NextButton"); await Wait(pane);
+            int childA = pane.ActiveHistoryNodeId!.Value;
+            string frozenPrompt = sessionA.Displayed!.Prompt;
+            ((TextBox)pane.FindName("InitialPrompt")).Text = "Changed hidden setup text must not affect later shapes.";
+            ((ComboBox)pane.FindName("RowsChoice")).SelectedIndex = 0;
+            await pane.UseShapeAsync(sourceB);
+            var sessionB = Field<RenderingSession>(pane, "session");
+            int rootB = pane.ActiveHistoryNodeId!.Value;
+            Require(!ReferenceEquals(sessionA, sessionB) && sessionB.Displayed!.Plane == 1 && sessionB.Displayed.SelectionStage == 1,
+                "A different shape must start an independent optimizer at the first step.");
+            Require(sessionB.Rows == 5 && !sessionB.Displayed!.Prompt.Contains("Changed hidden setup"), "Every shape must use the captured shared AI configuration.");
+            Require(pane.HistorySources[rootA]!.Key == sourceA.Key && pane.HistorySources[rootB]!.Key == sourceB.Key, "Each completed node must expose its original geometry source.");
+            await pane.UseShapeAsync(sourceA);
+            Require(pane.ActiveHistoryNodeId == childA && await RequestCount() == before + 3, "Repeated handoff must return to the retained run without a request.");
+            pane.ResumeHistory(rootA);
+            SelectCenter(pane); Click(pane, "NextButton"); await Wait(pane);
+            Require(pane.ActiveHistoryNodeId == childA && await RequestCount() == before + 3, "Source-cell path reuse must remain local to its rendering run.");
+            await pane.UseShapeAsync(sourceB);
+            Click(pane, "RegenerateButton"); await Wait(pane);
+            var variants = Field<List<RenderingHistoryNode>>(pane, "history");
+            Require(variants.Last().ParentId == rootB && variants.Last().State.Batch.SelectionStage == 1, "A regenerated shape variant must retain the source and step.");
+            await SetMode("slow"); SelectCenter(pane); Click(pane, "NextButton"); await Task.Delay(150);
+            int current = pane.ActiveHistoryNodeId!.Value;
+            await pane.UseShapeAsync(sourceA); pane.ResumeHistory(rootA);
+            Require(pane.IsBusy && pane.ActiveHistoryNodeId == current && pane.CurrentSource!.Key == sourceB.Key,
+                "Busy handoff and history resumption must not cancel or redirect the active request.");
+            pane.Cancel(); await Wait(pane); pane.ResumeHistory(rootA);
+            await Task.Delay(1800);
+            Require(pane.ActiveHistoryNodeId == rootA && pane.CurrentSource!.Key == sourceA.Key, "A late cancelled reply must not attach to another shape.");
+            await SetMode("rate-limit"); await pane.UseShapeAsync(sourceC);
+            Require(Field<RenderingSession>(pane, "session").Pending != null && !pane.HistorySources.Values.Any(s => s?.Key == sourceC.Key),
+                "Failed first generation must preserve pending conditions without a completed history node.");
+            await pane.UseShapeAsync(sourceA);
+            int requests = await RequestCount(); await pane.UseShapeAsync(sourceC);
+            Require(await RequestCount() == requests && ((Button)pane.FindName("RetryButton")).IsEnabled,
+                "Returning to a failed handoff must offer Retry rather than automatically request another image.");
+            Click(pane, "RetryButton"); await Wait(pane);
+            pane.ResumeHistory(rootA); SelectCenter(pane);
+            pane.SetPeerBusy(true);
+            Require(!((Button)pane.FindName("FinishButton")).IsEnabled && ((Button)pane.FindName("NextButton")).IsEnabled,
+                "Geometry computation must gate Finish but leave AI exploration independently usable.");
+            pane.SetPeerBusy(false);
+            bool rejectApply = true;
+            string? appliedSource = null;
+            pane.ApplyGeometryForFinish = async (candidate, token) => {
+                await Task.Yield(); token.ThrowIfCancellationRequested();
+                if (rejectApply) throw new InvalidOperationException("Injected geometry application failure.");
+                appliedSource = candidate.Key;
+            };
+            Click(pane, "FinishButton"); await Wait(pane);
+            Require(!finished && pane.HistoryItems.Count > 0 && ((Button)pane.FindName("FinishButton")).IsEnabled,
+                "Failed source application must retain the final result and history for retry.");
+            rejectApply = false;
+            Click(pane, "FinishButton"); await Wait(pane);
+            Require(finished && appliedSource == sourceA.Key && pane.HistoryItems.Count == 0, "Finish must apply the selected rendering's source and release every run after success.");
+            string directory = pane.LastExportDirectory!;
+            Require(File.ReadAllBytes(Path.Combine(directory, "reference.png")).SequenceEqual(sourceA.ReferencePng)
+                && File.ReadAllBytes(Path.Combine(directory, "geometry.png")).SequenceEqual(sourceA.ReferencePng), "Combined export must use the AI source image, not the latest other shape.");
+            using var parameters = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "parameters.json")));
+            Require(parameters.RootElement.GetProperty("variables")[0].GetProperty("value").GetDecimal() == sourceA.Variables[0].Value, "Combined export must preserve source geometry's exact decimal values.");
+            using var metadata = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "metadata.json")));
+            Require(metadata.RootElement.GetProperty("sourceGeometry").GetProperty("node").GetInt32() == sourceA.SourceNodeId
+                && metadata.RootElement.GetProperty("sourceGeometry").GetProperty("cell").GetInt32() == sourceA.Cell, "Combined metadata must identify the exact handed-off history node and cell.");
+            Require(await RequestCount() == before + 7, "Shape navigation and Finish must not introduce extra image generation.");
+            using (var stats = await JsonDocument.ParseAsync(await control.GetStreamAsync("stats"))) {
+                var sent = stats.RootElement.GetProperty("requests").EnumerateArray().Skip(before).Select(r => r.GetProperty("referenceSha256").GetString()).ToArray();
+                Require(sent.SequenceEqual(new[] { sourceA, sourceA, sourceB, sourceB, sourceB, sourceC, sourceC }.Select(s => ReferenceHash(s.ReferencePng))),
+                    "Every actual HTTP request must use the exact source image of its own shape, including cancellation and Retry.");
+            }
+            Console.WriteLine("PASS: multi-shape handoffs, frozen shared configuration, independent retained runs, busy guards, pending handoff Retry, and source-consistent combined Finish.");
+        } finally { pane.Shutdown(); }
+    }
+    private static GeometryCandidate MakeCandidate(int node, int cell, decimal value, byte[] reference) => new(node, cell, 5, 5, 1, 1, reference,
+        new[] { new GeometryVariableRecord("Facade width", Guid.NewGuid(), value + .1234567890123456789m, 0, 100, "Float", 19, .5, .5) });
+    private static async Task<int> RequestCount() {
+        using var stats = await JsonDocument.ParseAsync(await control.GetStreamAsync("stats"));
+        return stats.RootElement.GetProperty("requests").GetArrayLength();
+    }
+    private static string ReferenceHash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    private static T Field<T>(object target, string name) {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var field = target.GetType().GetField(name, flags);
+        return (T)(field != null ? field.GetValue(target)! : target.GetType().GetProperty(name, flags)!.GetValue(target)!);
+    }
+    private static string Status(RenderingPane window) => ((TextBlock)window.FindName("Status")).Text;
+    private static void Click(RenderingPane window, string name) {
         var button = (Button)window.FindName(name);
         Require(button.IsEnabled, name + " must be enabled. " + Status(window));
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     }
-    private static void SelectCenter(RenderingWindow window) {
+    private static void SelectCenter(RenderingPane window) {
         var cells = Field<Button[]>(window, "cells"); var cell = cells[cells.Length / 2];
         Require(cell.IsEnabled, "Center cell must be selectable. " + Status(window));
         cell.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     }
-    private static async Task Wait(RenderingWindow window) {
+    private static async Task Wait(RenderingPane window) {
         for (int i = 0; i < 18000 && Field<bool>(window, "busy"); i++) await Task.Delay(20);
         Require(!Field<bool>(window, "busy"), "Timed out waiting for the UI. " + Status(window));
     }
     private static async Task SetMode(string mode) {
         using var response = await control.PostAsJsonAsync("control", new { mode }); response.EnsureSuccessStatusCode();
     }
-    private static byte[] MakeReference() {
-        var image = BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgra32, null, Enumerable.Repeat((byte)255, 16).ToArray(), 8);
+    private static byte[] MakeReference(byte shade = 255) {
+        var image = BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgra32, null, Enumerable.Repeat(shade, 16).ToArray(), 8);
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
         using var stream = new MemoryStream(); encoder.Save(stream); return stream.ToArray();
     }
-    private static void Capture(RenderingWindow window, string path) {
+    private static void Capture(RenderingPane window, string path) {
         var content = (FrameworkElement)window.Content;
         content.Measure(new Size(1068, 810)); content.Arrange(new Rect(0, 0, 1068, 810)); content.UpdateLayout();
         var image = new RenderTargetBitmap(1068, 810, 96, 96, PixelFormats.Pbgra32); image.Render(content);
-        RenderingWindow.SavePng(image, path);
+        RenderingPane.SavePng(image, path);
     }
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

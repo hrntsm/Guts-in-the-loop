@@ -1,0 +1,28 @@
+<Window x:Class="SequentialGallery.IntegratedWindow" x:ClassModifier="internal"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:SequentialGallery"
+ Title="Sequential Gallery" Width="1580" Height="950" MinWidth="1050" MinHeight="650"
+ Background="#151A21" Foreground="#F3F5F7" WindowStartupLocation="CenterScreen">
+ <DockPanel Margin="12">
+  <DockPanel DockPanel.Dock="Bottom" Margin="8,10,8,0">
+   <Button x:Name="CloseButton" Content="Close" Click="CloseClick" DockPanel.Dock="Left" Padding="16,8" Background="#283341" Foreground="White"/>
+   <TextBlock Text="History is kept only while this window is open. Finish saves the selected result before closing." Margin="14,0" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#AAB8C8"/>
+  </DockPanel>
+  <StackPanel DockPanel.Dock="Top" Margin="8,2,8,12">
+   <TextBlock Text="GUT(S)-IN-THE-LOOP" FontSize="23" FontWeight="SemiBold"/>
+   <TextBlock x:Name="ModeLabel" TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,5,0,0"/>
+  </StackPanel>
+  <TabControl x:Name="ModeTabs" Background="#151A21" Foreground="White" SelectionChanged="ModeChanged">
+   <TabItem Header="Evaluate">
+    <Grid>
+     <Grid.ColumnDefinitions><ColumnDefinition x:Name="GeometryColumn" Width="*"/><ColumnDefinition x:Name="PaneGutter" Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <ContentControl x:Name="GeometrySlot"/>
+     <GridSplitter x:Name="PaneSplitter" Grid.Column="1" Width="5" HorizontalAlignment="Center" Background="#526174" ResizeBehavior="PreviousAndNext"/>
+     <ContentControl x:Name="RenderingSlot" Grid.Column="2"/>
+    </Grid>
+   </TabItem>
+   <TabItem Header="History"><local:IntegratedHistoryView x:Name="History"/></TabItem>
+  </TabControl>
+ </DockPanel>
+</Window>

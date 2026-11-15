@@ -49,7 +49,7 @@ assumptions:
     claim: In the exercised WPF flow, Show Prompt displayed the captured instructions and exact stored values for the displayed matrix without making another image request.
     reason: The smoke check compared every value-box detail and the full prompt with the displayed batch, synchronized image/value-box selection, and counted real HTTP calls before and after toggling. The value grid mirrors the image layout, with six values grouped inside each box after removing color temperature.
     verification: Earlier ten-call flows passed, including separate Initial and Negative displays on dirty 95a83a7; the old final preview retained both texts. In the current branching-history run, failed Next retained the old request, successful Retry updated it, and restoring a history node restored its exact prompt and values without an API call. Finish now exports and closes instead of retaining a final preview. This verifies caller data correspondence, not generated-image interpretation.
-    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingWindow.xaml.cs
+    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingPane.xaml.cs
     updated_at: '2026-11-14'
   - id: detailed-prompt-catalog
     status: supported
@@ -63,14 +63,21 @@ assumptions:
     claim: In the local fixed-value-selector run, unselected variables retained their chosen catalog anchors in every candidate and actual HTTP prompt throughout the exercised exploration flow.
     reason: The production WPF flow explored two variables with four selected fixed conditions; direct session checks covered all 29 fixed anchors and cloned input values, while the inspector checks compared stored values to displayed details.
     verification: On dirty 2540e82, RenderingSmoke passed the ten-call Postman flow with heavy precipitation, empty activity, rich planting, and winter fixed. The UI enabled dropdowns only for unchecked variables, locked them on Start, and ignored a programmatic change to the hidden season selector after Start. Requests retained W4, A0, V3, and S3 through Retry, Regenerate, cancellation, zoom, and a learned plane update. This establishes caller state and prompt construction, not visual adherence by the real image provider.
-    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingSession.cs; src/SequentialGallery/RenderingWindow.xaml.cs
+    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingSession.cs; src/SequentialGallery/RenderingPane.xaml.cs
     updated_at: '2026-11-14'
   - id: branching-history-and-result-export
     status: supported
     claim: In the exercised WPF flow, restoring history reused saved images and branch-local optimizer state, and Finish exported the selected crop with its exact prompt, reference, and conditions before closing.
     reason: Production window/session code ran with real SPS state copies and real HTTP against the stand-in. Assertions inspected node counts, candidate vectors, request counts, exported bytes and JSON, and disposal after success.
     verification: Twelve local HTTP calls passed on dirty 3f59965 in implementation and independent-review runs. Checks covered source-cell path reuse without another call, alternate branches, restoration after a learned plane, same-stage Regenerate variants, busy preview gating, cancellation/late responses, failed save retaining history, and successful automatic bundle contents. Test output was redirected to ignored build/evidence instead of the real Desktop. No paid request was made for this revision; this does not establish visual adherence by the real image model.
-    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingWindow.xaml.cs; src/SequentialGallery/RenderingSession.cs; src/SequentialGallery/ResultExport.cs
+    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingPane.xaml.cs; src/SequentialGallery/RenderingSession.cs; src/SequentialGallery/ResultExport.cs
+    updated_at: '2026-11-14'
+  - id: integrated-reference-provenance
+    status: supported
+    claim: In the exercised integrated flow, each shape handoff used its cached image in actual HTTP requests, retained its own rendering history, and exported the chosen AI result with its source geometry rather than the left pane's later selection.
+    reason: The production panes and integrated window ran with real SPS and HTTP against the stand-in. The fixture recorded SHA-256 of decoded reference images; tests compared those hashes to distinct handed-off candidates and checked source records in exported files.
+    verification: On dirty 47c866c, RenderingSmoke passed twelve AI-only regression calls plus seven multi-shape calls, and IntegratedSmoke passed four calls covering source A, regenerated A, source B, and the AI-only viewport. Independent review repeated all three pane/integrated smoke suites successfully. A separate real Rhino run made two local stand-in requests and 20 Grasshopper solutions, retaining source A/B explorations and restoring/applying source A values 55,55,55,0.7 on Finish while the left side remained at B. Cached reference hashes and six-file bundle provenance matched the chosen source. Export roots were redirected to ignored build output; no paid requests were made, and model image quality is not established.
+    source: smoke/IntegratedSmoke/Program.cs; smoke/RenderingSmoke/Program.cs; postman/mocks/openai-images/default.js; src/SequentialGallery/IntegratedWindow.xaml.cs; src/SequentialGallery/RenderingPane.xaml.cs
     updated_at: '2026-11-14'
 fingerprints:
   - id: initial-rendering
@@ -97,3 +104,8 @@ fingerprints:
     commit: 3f59965
     cli: 1.75.0
     notes: Dirty tree with Evaluate/History, pinned SPS clone fork, and automatic result export.
+  - id: integrated-exploration
+    date: '2026-11-14'
+    commit: 47c866c
+    cli: 1.75.0
+    notes: Dirty tree with unified component, geometry and rendering panes, retained per-shape runs, connected History and source-aware Finish.

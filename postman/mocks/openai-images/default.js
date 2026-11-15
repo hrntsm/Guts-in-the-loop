@@ -2,6 +2,7 @@
 // Control and stats routes belong to this test fixture, not the OpenAI API.
 const http = require('node:http');
 const zlib = require('node:zlib');
+const crypto = require('node:crypto');
 let mode = 'success';
 const requests = [];
 function crc32(bytes) {
@@ -43,7 +44,8 @@ http.createServer(async (req, res) => {
     const valid = body.model === 'gpt-image-2.6-flare' && body.n === 1 && body.size === '1024x1024'
       && body.quality === 'low' && body.output_format === 'png' && body.images?.length === 1
       && body.images[0].image_url?.startsWith('data:image/png;base64,') && typeof body.prompt === 'string' && body.prompt.length <= 32000;
-    requests.push({prompt: body.prompt, valid, mode});
+    const referenceSha256 = valid ? crypto.createHash('sha256').update(Buffer.from(body.images[0].image_url.split(',')[1], 'base64')).digest('hex') : null;
+    requests.push({prompt: body.prompt, valid, mode, referenceSha256});
     if (!valid) return reply(400, {error: {message: 'Invalid image edit contract'}});
     const scenario = mode; mode = 'success';
     if (scenario === 'rate-limit') return reply(429, {error: {message: 'Simulated rate limit'}});

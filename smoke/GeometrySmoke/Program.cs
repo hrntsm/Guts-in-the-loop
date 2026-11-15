@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -14,68 +13,83 @@ using SequentialGallery;
 
 internal static class Program {
     [STAThread] private static void Main() {
-        var app = new Application();
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.Startup += async (_, _) => {
-            GalleryWindow? window = null;
+            GeometryPane? pane = null;
+            Window? window = null;
             try {
                 SpsEngine.LibraryDirectory = Path.GetFullPath("build/native/out");
                 var host = new FakeHost();
-                window = new GalleryWindow(() => host, TimeSpan.FromMilliseconds(5));
-                bool closed = false; window.Closed += (_, _) => closed = true;
-                var history = (HistoryView)window.FindName("History");
+                pane = new GeometryPane(() => host, TimeSpan.FromMilliseconds(5));
+                window = new Window { Content = pane, Width = 720, Height = 850 };
+                bool finished = false, closed = false;
+                window.Closed += (_, _) => closed = true;
+                pane.Finished += () => { finished = true; pane.Shutdown(); window.Close(); };
+                GeometryCandidate? handedOff = null;
+                pane.HandoffRequested += source => handedOff = source;
                 Require(host.Applies == 0, "Opening setup must not apply variables.");
-                Click(window, "StartButton"); await Wait(window);
-                Require(NodeCount(window) == 1 && host.Applies == 25, "Start must complete and retain one 25-cell grid.");
-                Select(window, 12); await Wait(window);
-                Require(NodeCount(window) == 2, "Each completed grid must add one history node.");
+                Click(pane, "StartButton"); await Wait(pane);
+                Require(pane.HistoryItems.Count == 1 && host.Applies == 25, "Start must retain one complete grid. " + ((TextBlock)pane.FindName("Status")).Text);
                 int calls = host.Applies;
-                history.Preview(0); Require(host.Applies == calls, "History preview must not touch sliders.");
-                history.ResumeSelected();
-                Require(Field<int?>(window, "activeNodeId") == 0 && host.Applies == calls, "Resume must restore without geometry capture.");
-                Select(window, 12); await Wait(window);
-                Require(NodeCount(window) == 2 && host.Applies == calls && Field<int?>(window, "activeNodeId") == 1, "Same-cell revisit must reuse its stored child.");
-                history.Preview(0); history.ResumeSelected();
-                Select(window, 0); await Wait(window);
-                Require(NodeCount(window) == 3 && NodeParent(window, 1) == 0 && NodeParent(window, 2) == 0, "A revised selection must retain both branches.");
-                history.Preview(1); history.ResumeSelected();
-                for (int i = 0; i < 3; i++) { Select(window, 12); await Wait(window); }
-                Require(Field<int>(window, "plane") == 2 && Field<int>(window, "zoom") == 0, "History-aware exploration must still update planes after four selections.");
-                int complete = NodeCount(window), source = Field<int?>(window, "activeNodeId")!.Value;
+                Select(pane, 12);
+                Require(host.Applies == calls && pane.HistoryItems.Count == 1, "A geometry click must only select, without solving or advancing SPS.");
+                Require(pane.SelectedCandidate?.SourceNodeId == 0 && pane.SelectedCandidate.Cell == 12, "Selected shape must identify its displayed source node and cell.");
+                pane.SetPeerBusy(true);
+                Require(((Button)pane.FindName("NextButton")).IsEnabled && !((Button)pane.FindName("HandoffButton")).IsEnabled
+                    && !((Button)pane.FindName("FinishButton")).IsEnabled, "AI activity must block only handoff and Finish, not shape exploration.");
+                pane.SetPeerBusy(false);
+                Click(pane, "HandoffButton");
+                Require(handedOff?.Key == "0:12" && host.Applies == calls && pane.HistoryItems.Count == 1, "Handoff must emit the selected cached shape without a solve or zoom.");
+                Require(handedOff!.ReferencePng.Length > 0 && handedOff.Variables.Length == 2, "Handoff must retain its captured PNG and exact variable records.");
+                Click(pane, "NextButton"); await Wait(pane);
+                Require(pane.HistoryItems.Count == 2 && pane.SelectedCandidate == null, "Next must add a complete grid and clear the previous cell selection.");
+                calls = host.Applies;
+                pane.ResumeHistory(0);
+                Require(pane.ActiveHistoryNodeId == 0 && host.Applies == calls, "History restoration must not apply sliders or capture images.");
+                Select(pane, 12); Click(pane, "NextButton"); await Wait(pane);
+                Require(pane.HistoryItems.Count == 2 && host.Applies == calls && pane.ActiveHistoryNodeId == 1, "Same-cell Next must reuse the saved child without another solve.");
+                pane.ResumeHistory(0);
+                Select(pane, 0); Click(pane, "NextButton"); await Wait(pane);
+                Require(pane.HistoryItems.Count == 3 && pane.HistoryItems[1].ParentId == 0 && pane.HistoryItems[2].ParentId == 0, "A different selection must preserve both branches.");
+                pane.ResumeHistory(1);
+                for (int i = 0; i < 3; i++) { Select(pane, 12); Click(pane, "NextButton"); await Wait(pane); }
+                Require(Field<int>(pane, "plane") == 2 && Field<int>(pane, "zoom") == 0, "Four committed selections must learn a new plane.");
+                int complete = pane.HistoryItems.Count, source = pane.ActiveHistoryNodeId!.Value;
                 host.Slow = true; calls = host.Applies;
-                Select(window, 12);
+                Select(pane, 12); Click(pane, "NextButton");
                 for (int i = 0; i < 500 && host.Applies == calls; i++) await Task.Delay(10);
-                Require(host.Applies > calls, "Cancellation scenario must reach candidate application.");
-                history.Preview(0); history.ResumeSelected();
-                Require(Field<int?>(window, "activeNodeId") == source, "Resume must be disabled while generation is busy.");
-                Click(window, "CancelButton"); await Wait(window); host.Slow = false;
-                Require(NodeCount(window) == complete, "Cancelled partial grids must not become history nodes.");
-                history.Preview(source); history.ResumeSelected();
-                Require(!Field<bool>(window, "stopped") && !Field<bool>(window, "pendingPrepared"), "History resume must clear failed/cancelled pending work.");
-                Select(window, 12); await Wait(window);
-                Require(NodeCount(window) == complete + 1, "Exploration must continue after cancelling and resuming history.");
+                Require(host.Applies > calls && pane.IsBusy, "Cancellation scenario must reach candidate application.");
+                pane.ResumeHistory(0);
+                Require(pane.ActiveHistoryNodeId == source, "Resume must be blocked during shape generation.");
+                pane.Cancel(); await Wait(pane); host.Slow = false;
+                Require(pane.HistoryItems.Count == complete, "Cancelled partial grids must not enter history.");
+                pane.ResumeHistory(source);
+                Require(!Field<bool>(pane, "stopped") && !Field<bool>(pane, "pendingPrepared"), "Resume must abandon cancelled pending work.");
+                Select(pane, 12); Click(pane, "NextButton"); await Wait(pane);
+                Require(pane.HistoryItems.Count == complete + 1, "Exploration must continue after cancellation and restoration.");
+                Select(pane, 12);
+                var finalCandidate = pane.SelectedCandidate!;
                 Capture(window, "build/evidence/geometry-evaluate.png");
-                ((TabControl)window.FindName("ExplorationTabs")).SelectedIndex = 1;
-                history.Preview(0); Capture(window, "build/evidence/geometry-history.png");
-                Require(!((Button)window.FindName("FinishButton")).IsEnabled, "History preview must not expose a Finish action for a different active selection.");
-                ((TabControl)window.FindName("ExplorationTabs")).SelectedIndex = 0;
                 string exportRoot = Path.GetFullPath("build/evidence/geometry-exports-" + Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(exportRoot);
                 string blocker = Path.Combine(exportRoot, "not-a-directory"); File.WriteAllText(blocker, "block export");
                 ResultExport.RootDirectoryOverride = blocker;
-                Click(window, "FinishButton"); await Wait(window);
-                Require(!closed && ((Button)window.FindName("FinishButton")).IsEnabled, "Save failure must retain the result and allow another Finish attempt.");
+                Click(pane, "FinishButton"); await Wait(pane);
+                Require(!closed && !finished && ((Button)pane.FindName("FinishButton")).IsEnabled, "Save failure must retain the result for retry.");
                 ResultExport.RootDirectoryOverride = exportRoot;
-                Click(window, "FinishButton"); await Wait(window);
-                Require(closed && window.LastExportPath != null && host.RecordedApplies == 2, "Finish must apply recorded values and close only after save success.");
-                Require(File.Exists(Path.Combine(window.LastExportPath!, "geometry.png")), "Geometry result must include the selected image.");
-                using var metadata = JsonDocument.Parse(File.ReadAllText(Path.Combine(window.LastExportPath!, "parameters.json")));
-                Require(metadata.RootElement.GetProperty("variables")[0].GetProperty("value").GetDecimal() == host.Values[0], "JSON must preserve the exact applied decimal value.");
-                Require(metadata.RootElement.GetProperty("variables")[0].GetProperty("spsCoordinate").ValueKind == JsonValueKind.Number, "JSON must distinguish raw SPS coordinates from applied values.");
-                Require(!Directory.EnumerateDirectories(exportRoot, ".pending-*").Any(), "Failed exports must not leave staging folders.");
-                Console.WriteLine("PASS: geometry WPF with real SPS; branch reuse, alternate branches, plane learning, cancellation recovery, preview isolation, and automatic export failure/retry.");
-                Console.WriteLine("This check uses a fake geometry host; it does not establish Rhino capture or Grasshopper solver behavior.");
+                Click(pane, "FinishButton"); await Wait(pane);
+                Require(closed && finished && pane.LastExportPath != null && host.RecordedApplies == 2, "Successful geometry Finish must apply recorded values and notify the owning window.");
+                Require(File.ReadAllBytes(Path.Combine(pane.LastExportPath!, "geometry.png")).SequenceEqual(finalCandidate.ReferencePng), "Exported shape image must be the selected candidate's source capture.");
+                using var metadata = JsonDocument.Parse(File.ReadAllText(Path.Combine(pane.LastExportPath!, "parameters.json")));
+                Require(metadata.RootElement.GetProperty("variables")[0].GetProperty("value").GetDecimal() == host.Values[0], "JSON must preserve exact applied decimals.");
+                Require(metadata.RootElement.GetProperty("variables")[0].GetProperty("spsCoordinate").ValueKind == JsonValueKind.Number, "JSON must distinguish raw coordinates from applied values.");
+                Require(metadata.RootElement.GetProperty("sourceHistoryNode").GetInt32() == finalCandidate.SourceNodeId, "Export source must be the selected displayed grid, not its preceding selection.");
+                Require(pane.HistoryItems.Count == 0, "Shutdown must discard window-lifetime history.");
+                Require(!Directory.EnumerateDirectories(exportRoot, ".pending-*").Any(), "Export failures must not leave valid-looking partial output.");
+                Console.WriteLine("PASS: embeddable geometry pane with real SPS; click-only selection, explicit Next, cached handoff, independent busy gating, branch reuse, learning, cancellation recovery, and exact automatic export.");
+                Console.WriteLine("Uses a fake geometry host; Rhino solver/capture are validated separately.");
             } catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
-            finally { window?.Close(); ResultExport.RootDirectoryOverride = null; app.Shutdown(); }
+            finally { pane?.Shutdown(); window?.Close(); ResultExport.RootDirectoryOverride = null; app.Shutdown(); }
         };
         app.Run();
     }
@@ -104,17 +118,14 @@ internal static class Program {
         public void Dispose() { }
     }
     private static T Field<T>(object target, string name) => (T)target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(target)!;
-    private static IList Nodes(GalleryWindow window) => Field<IList>(window, "history");
-    private static int NodeCount(GalleryWindow window) => Nodes(window).Count;
-    private static int? NodeParent(GalleryWindow window, int index) => (int?)Nodes(window)[index]!.GetType().GetProperty("ParentId")!.GetValue(Nodes(window)[index]);
-    private static void Click(GalleryWindow window, string name) => ((Button)window.FindName(name)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-    private static void Select(GalleryWindow window, int index) {
+    private static void Click(GeometryPane window, string name) => ((Button)window.FindName(name)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    private static void Select(GeometryPane window, int index) {
         var cell = Field<Button[]>(window, "cells")[index]; Require(cell.IsEnabled, "Chosen geometry cell must be enabled.");
         cell.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     }
-    private static async Task Wait(GalleryWindow window) {
-        for (int i = 0; i < 6000 && Field<bool>(window, "busy"); i++) await Task.Delay(10);
-        Require(!Field<bool>(window, "busy"), "Geometry flow timed out.");
+    private static async Task Wait(GeometryPane window) {
+        for (int i = 0; i < 6000 && window.IsBusy; i++) await Task.Delay(10);
+        Require(!window.IsBusy, "Geometry flow timed out.");
     }
     private static void Capture(Window window, string path) {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);

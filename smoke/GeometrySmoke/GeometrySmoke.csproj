@@ -6,10 +6,9 @@
  <ItemGroup>
   <Compile Include="Program.cs"/>
   <Compile Include="../../src/SequentialGallery/SpsEngine.cs" Link="SpsEngine.cs"/>
-  <Compile Include="../../src/SequentialGallery/GalleryWindow.xaml.cs" Link="GalleryWindow.xaml.cs"/>
-  <Compile Include="../../src/SequentialGallery/HistoryView.xaml.cs" Link="HistoryView.xaml.cs"/>
+  <Compile Include="../../src/SequentialGallery/GeometryPane.xaml.cs" Link="GeometryPane.xaml.cs"/>
+  <Compile Include="../../src/SequentialGallery/ExplorationModels.cs" Link="ExplorationModels.cs"/>
   <Compile Include="../../src/SequentialGallery/ResultExport.cs" Link="ResultExport.cs"/>
-  <Page Include="../../src/SequentialGallery/GalleryWindow.xaml" Link="GalleryWindow.xaml"/>
-  <Page Include="../../src/SequentialGallery/HistoryView.xaml" Link="HistoryView.xaml"/>
+  <Page Include="../../src/SequentialGallery/GeometryPane.xaml" Link="GeometryPane.xaml"/>
  </ItemGroup>
 </Project>

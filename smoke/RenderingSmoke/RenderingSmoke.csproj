@@ -5,15 +5,16 @@
  </PropertyGroup>
  <ItemGroup>
   <Compile Include="Program.cs"/>
-  <Compile Include="../../src/SequentialGallery/HistoryView.xaml.cs" Link="HistoryView.xaml.cs"/>
-  <Page Include="../../src/SequentialGallery/HistoryView.xaml" Link="HistoryView.xaml"/>
+  <Compile Include="../../src/SequentialGallery/ExplorationModels.cs" Link="ExplorationModels.cs"/>
+  <Compile Include="../../src/SequentialGallery/GeometryPane.xaml.cs" Link="GeometryPane.xaml.cs"/>
+  <Page Include="../../src/SequentialGallery/GeometryPane.xaml" Link="GeometryPane.xaml"/>
   <Compile Include="../../src/SequentialGallery/ResultExport.cs" Link="ResultExport.cs"/>
   <Compile Include="../../src/SequentialGallery/RenderingPrompts.cs" Link="RenderingPrompts.cs"/>
   <EmbeddedResource Include="../../src/SequentialGallery/Prompts/rendering.json" LogicalName="SequentialGallery.RenderingPrompts.json"/>
   <Compile Include="../../src/SequentialGallery/SpsEngine.cs" Link="SpsEngine.cs"/>
   <Compile Include="../../src/SequentialGallery/RenderingSession.cs" Link="RenderingSession.cs"/>
   <Compile Include="../../src/SequentialGallery/RenderingApi.cs" Link="RenderingApi.cs"/>
-  <Compile Include="../../src/SequentialGallery/RenderingWindow.xaml.cs" Link="RenderingWindow.xaml.cs"/>
-  <Page Include="../../src/SequentialGallery/RenderingWindow.xaml" Link="RenderingWindow.xaml"/>
+  <Compile Include="../../src/SequentialGallery/RenderingPane.xaml.cs" Link="RenderingPane.xaml.cs"/>
+  <Page Include="../../src/SequentialGallery/RenderingPane.xaml" Link="RenderingPane.xaml"/>
  </ItemGroup>
 </Project>

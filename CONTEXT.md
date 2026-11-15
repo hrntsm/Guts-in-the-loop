@@ -8,7 +8,7 @@ Compare Grasshopper-generated designs and explore them through user preferences.
 The tab containing the current candidate grid and the existing selection workflow for an exploration session.
 
 **History mode**:
-The tab showing an exploration session's history as a tree, from which the user can return to an earlier exploration step to revise a choice.
+The tab showing recorded candidate grids and branches, from which the user can return to an earlier exploration step. Integrated exploration places geometry and AI histories in two connected columns identifying each geometry handoff.
 
 **Exploration branch**:
 A retained path of exploration steps descended from earlier candidate selections. Revising a choice at an earlier step creates a new branch while preserving the previous path for later navigation.
@@ -35,13 +35,19 @@ The row and column counts chosen before starting exploration, each 3, 5, 7, or 9
 A stage of selecting a candidate and halving the search region around it on the same plane. The fourth selection is submitted to SPS to construct the next search plane.
 
 **Final candidate**:
-The last candidate selected by the user, whose applied slider values are restored when finishing normally.
+The candidate selected for geometry-only completion, or the source geometry of the selected AI result in combined completion. Its recorded applied slider values are restored when finishing.
 
 **AI rendering component**:
-A separate Grasshopper component for exploring the rendering atmosphere of a fixed reference image. It has its own setup and exploration session; integration with the geometry exploration workflow is a future goal.
+The legacy AI-only entry point retained for existing Grasshopper definitions. New definitions use the integrated Sequential Gallery component, which provides AI-only behavior when no design variables are connected.
+
+**Integrated exploration**:
+The single-component workflow showing geometry optimization on the left and AI rendering optimization on the right. With no connected design variables it provides AI rendering only; combined history identifies which geometry result supplied each rendering reference.
+
+**Geometry handoff**:
+The explicit `Use this shape` action that supplies a chosen geometry candidate as the AI rendering reference. That reference remains fixed until another handoff, while geometry exploration can continue independently.
 
 **Rendering reference image**:
-The single capture of the active Rhino viewport taken when the user starts an AI rendering session. It remains fixed throughout that session and is the reference for every generated matrix.
+The fixed image used by every matrix in one rendering exploration: the handed-off geometry candidate's recorded capture in combined mode, or the active viewport captured on Start in AI-only mode. Returning to a prior exploration restores its original reference.
 
 **Initial prompt**:
 The desired shared scene conditions entered before an AI rendering session starts, such as preserving the storey count and camera angle. The text stays fixed across all candidate matrices and, together with Negative prompt, takes priority over conflicting atmosphere instructions without becoming a search variable.

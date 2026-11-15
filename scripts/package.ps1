@@ -16,23 +16,32 @@ Sequential Gallery — Windows x64 / Rhino 8.36+ / .NET 10
 2. Restart Rhino and open Grasshopper.
 3. Open samples/Facade.ghx, or connect Number Sliders directly to the
    Variables input of Params > Util > Sequential Gallery.
-4. Double-click Sequential Gallery, choose Rows and Columns, frame the active
-   Rhino viewport, then click Start exploration. The default grid is 5x5.
-5. Select preferred images. Four selections advance to the next plane.
-6. Finish restores the last selected shape and automatically saves its image
-   and slider parameters to Desktop/Guts-in-the-loop-results before closing.
+4. Double-click Sequential Gallery. With 2+ connected sliders, geometry is on
+   the left and AI rendering on the right. With no sliders, AI uses the window.
+   One connected slider is invalid. The default grid is 5x5 on each side.
+5. Click a candidate to select it, then Next to commit and advance exploration.
+   Four committed selections advance to the next plane. Use this shape sends
+   the selected geometry image to AI and starts its first matrix.
+6. Finish geometry only saves the selected shape. Rendering Finish saves its
+   selected crop and its own source shape, applying that source's sliders.
+   Results save to Desktop/Guts-in-the-loop-results before the window closes.
 
-For AI rendering, set OPENAI_API_KEY before starting Rhino. Add Params > Util >
-AI Rendering, double-click it, select variables and grid size, then Start.
-Select a cell and press Next to explore. Finish saves its crop, source image,
-prompt and conditions to Desktop/Guts-in-the-loop-results before closing.
+For AI rendering, set OPENAI_API_KEY before starting Rhino. Prepare variables,
+fixed values, Initial/Negative prompts and rendering grid on the right. The
+first AI start freezes this configuration for all shapes in the window.
+AI-only mode captures the viewport on Start. Combined mode waits for an
+explicit shape handoff. Each shape keeps its own AI exploration and reference;
+returning to the same geometry node and cell reuses its existing AI history.
+Finish saves the crop, source image, exact prompt and conditions; combined
+results also include source geometry variables, even if the left side differs.
 There is no additional generation or upscaling. API usage applies.
 Retry repeats failed conditions; Regenerate adds a variant of the same conditions.
 Cancel stops waiting locally and does not guarantee remote cancellation.
 
 Evaluate and History tabs show current candidates and branching exploration.
-Select a History node to preview; Resume from here restores its state without
-new generation. Repeating an existing cell choice reuses its stored child.
+History has geometry and AI columns with cross-links for shape handoffs.
+Select a node to preview; Resume from here restores only that side's state
+without new generation. Repeating an existing cell choice reuses its child.
 History is discarded when the window closes; result files are not session saves.
 
 Slider precision/type is preserved. Existing Fillet Edge errors in the

@@ -1,0 +1,48 @@
+<UserControl x:Class="SequentialGallery.GeometryPane" x:ClassModifier="internal"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Background="#151A21" Foreground="#F3F5F7">
+ <UserControl.Resources>
+  <Style TargetType="Button">
+   <Setter Property="Background" Value="#283341"/><Setter Property="Foreground" Value="White"/>
+   <Setter Property="Padding" Value="12,8"/><Setter Property="Margin" Value="4"/>
+  </Style>
+ </UserControl.Resources>
+ <DockPanel Margin="12">
+  <StackPanel DockPanel.Dock="Top" Margin="4,0,4,10">
+   <TextBlock Text="SHAPE OPTIMIZATION" FontSize="21" FontWeight="SemiBold"/>
+   <TextBlock x:Name="PlaneLabel" Text="Setup" Margin="0,8,0,0"/>
+   <TextBlock x:Name="GalleryInstructions" Visibility="Collapsed" Text="Click to select. Next explores around that shape; Use this shape sends it to AI." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,5,0,0"/>
+  </StackPanel>
+  <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+   <ProgressBar x:Name="Progress" Visibility="Collapsed" Height="5"/>
+   <TextBlock x:Name="Status" Margin="4,8" TextWrapping="Wrap" Text="Choose a grid size, then start. Sliders stay unchanged until Start."/>
+   <WrapPanel>
+    <Button x:Name="CancelButton" Content="Cancel generation" Click="CancelClick" Visibility="Collapsed"/>
+    <Button x:Name="RetryButton" Content="Retry" Click="RetryClick" Visibility="Collapsed"/>
+    <Button x:Name="NextButton" Content="Next" Click="NextClick" Visibility="Collapsed" IsEnabled="False"/>
+    <Button x:Name="HandoffButton" Content="Use this shape" Click="HandoffClick" Visibility="Collapsed" IsEnabled="False"/>
+    <Button x:Name="FinishButton" Content="Finish geometry only" Click="FinishClick" Visibility="Collapsed" IsEnabled="False"/>
+   </WrapPanel>
+  </StackPanel>
+  <Grid>
+   <ScrollViewer x:Name="SetupPanel" VerticalScrollBarVisibility="Auto">
+    <StackPanel MaxWidth="760" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12">
+     <TextBlock Text="Set up shape exploration" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16"/>
+     <WrapPanel>
+      <TextBlock Text="Rows" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <ComboBox x:Name="RowsChoice" Width="65" SelectedIndex="1" SelectionChanged="GridSizeChanged"><ComboBoxItem Content="3"/><ComboBoxItem Content="5"/><ComboBoxItem Content="7"/><ComboBoxItem Content="9"/></ComboBox>
+      <TextBlock Text="Columns" VerticalAlignment="Center" Margin="16,0,8,0"/>
+      <ComboBox x:Name="ColumnsChoice" Width="65" SelectedIndex="1" SelectionChanged="GridSizeChanged"><ComboBoxItem Content="3"/><ComboBoxItem Content="5"/><ComboBoxItem Content="7"/><ComboBoxItem Content="9"/></ComboBox>
+      <TextBlock x:Name="GridSummary" VerticalAlignment="Center" Margin="12,0"/>
+     </WrapPanel>
+     <TextBlock x:Name="TimeEstimate" TextWrapping="Wrap" Margin="0,12,0,0"/>
+     <TextBlock Text="Estimate excludes capture and SPS. Keep the source documents, slider settings and definition unchanged during exploration." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,6,0,0"/>
+     <TextBlock Text="Frame the active Rhino viewport before Start. Its camera, display mode and capture size remain fixed." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,8,0,0"/>
+     <Button x:Name="StartButton" Content="Start shape exploration" Click="StartClick" HorizontalAlignment="Left" Margin="0,16,0,0"/>
+    </StackPanel>
+   </ScrollViewer>
+   <UniformGrid x:Name="Gallery" Visibility="Collapsed" Rows="5" Columns="5"/>
+  </Grid>
+ </DockPanel>
+</UserControl>
