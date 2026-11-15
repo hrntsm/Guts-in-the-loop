@@ -41,6 +41,21 @@ internal static class Program {
                 if (!live) {
                     ((TextBox)window.FindName("InitialPrompt")).Text = fixedScene;
                     ((TextBox)window.FindName("NegativePrompt")).Text = fixedNegative;
+                    var options = Field<CheckBox[]>(window, "variables");
+                    var choices = Field<ComboBox[]>(window, "fixedValueChoices");
+                    for (int i = 0; i < choices.Length; i++) {
+                        Require(choices[i].Items.Count == (i == 5 ? 4 : 5) && !choices[i].IsEnabled, "Explored variables must have disabled anchor choices; Season has four choices, others five.");
+                        options[i].IsChecked = false;
+                        Require(choices[i].IsEnabled, "Unchecking a variable must enable its fixed-value selector.");
+                        options[i].IsChecked = true;
+                        Require(!choices[i].IsEnabled, "Checking a variable must restore exploration and disable its fixed-value selector.");
+                    }
+                    int[] fixedChoiceIndices = { 2, 2, 4, 0, 3, 3 };
+                    for (int i = 2; i < options.Length; i++) {
+                        options[i].IsChecked = false;
+                        choices[i].SelectedIndex = fixedChoiceIndices[i];
+                    }
+                    Require(captures == 0 && Field<RenderingSession?>(window, "session") == null, "Choosing fixed values must not capture or generate.");
                 }
                 Capture(window, "build/evidence/rendering-setup.png");
                 Click(window, "StartButton"); await Wait(window);
@@ -50,6 +65,10 @@ internal static class Program {
                 Require(((FrameworkElement)window.FindName("SetupPanel")).Visibility == Visibility.Collapsed, "Setup must disappear.");
                 Require(session.Displayed!.Valid.Length == 25 && session.Displayed.Values.All(v => v.Length == 6), "Default grid must map 25 six-variable conditions.");
                 if (!live) {
+                    double[] expectedFixed = { 1, 0, .75, 1 };
+                    Require(session.Displayed.Values.All(v => v.Skip(2).SequenceEqual(expectedFixed)), "Every displayed cell must use the chosen weather, activity, vegetation, and season values.");
+                    Require(Field<ComboBox[]>(window, "fixedValueChoices").All(c => !c.IsEnabled), "All fixed-value choices must be locked after Start.");
+                    Field<ComboBox[]>(window, "fixedValueChoices")[5].SelectedIndex = 0;
                     Require(session.InitialPrompt == fixedScene && session.Displayed.Prompt.Contains(fixedScene), "Initial prompt must be captured and sent in the first matrix request.");
                     Require(session.NegativePrompt == fixedNegative && session.Displayed.Prompt.Contains("[Negative prompt - avoid these results]" + Environment.NewLine + fixedNegative), "Negative results must be sent in a separately labeled avoidance block.");
                     Require(((TextBox)window.FindName("InitialPrompt")).IsReadOnly, "Initial prompt must be frozen after Start.");
@@ -98,7 +117,18 @@ internal static class Program {
                         }
                     }
                     using var subset = new RenderingSession(3, 7, new[] {0,1});
-                    Require(subset.Pending!.Values.All(v => v.Skip(2).All(x => x == .5)), "Unselected variables must remain fixed.");
+                    Require(subset.Pending!.Values.All(v => v.Skip(2).SequenceEqual(RenderingSession.Variables.Skip(2).Select(variable => variable.DefaultFixedValue))), "Unselected defaults must be actual anchors, including Autumn for Season.");
+                    for (int fixedIndex = 0; fixedIndex < RenderingSession.Variables.Length; fixedIndex++) {
+                        var variable = RenderingSession.Variables[fixedIndex];
+                        for (int anchor = 0; anchor < variable.Anchors.Length; anchor++) {
+                            var fixedValues = RenderingSession.Variables.Select(v => v.DefaultFixedValue).ToArray();
+                            double expected = fixedValues[fixedIndex] = (double)anchor / (variable.Anchors.Length - 1);
+                            using var fixedSession = new RenderingSession(3, 3, Enumerable.Range(0, 6).Where(i => i != fixedIndex).Take(2).ToArray(), fixedValues: fixedValues);
+                            fixedValues[fixedIndex] = -1;
+                            Require(fixedSession.Pending!.Values.All(v => v[fixedIndex] == expected), "Every fixed anchor must map to its own normalized value, independently of the input array.");
+                            Require(fixedSession.Pending.Prompt.Contains($"Fixed in every valid cell: {variable.Key} = {variable.Key}{anchor}."), "The request must use the chosen fixed anchor instead of a midpoint blend.");
+                        }
+                    }
                     using var noScenePrompts = new RenderingSession(3, 3, new[] {0,1}, "", "");
                     Require(!noScenePrompts.Pending!.Prompt.Contains("[Initial prompt]") && !noScenePrompts.Pending.Prompt.Contains("[Negative prompt"), "Empty optional fields must not fall back to default prompt blocks.");
                     using var negativeOnly = new RenderingSession(3, 3, new[] {0,1}, "", fixedNegative);
@@ -146,6 +176,11 @@ internal static class Program {
                     Require(requests.EnumerateArray().Skip(priorRequests).All(r => r.GetProperty("prompt").GetString()!.Contains(fixedScene)
                         && r.GetProperty("prompt").GetString()!.Contains(fixedNegative)
                         && !r.GetProperty("prompt").GetString()!.Contains("Do not use this changed")), "Both prompt categories must stay unchanged through Next, Retry, Regenerate, and cancellation.");
+                    Require(session.Displayed.Values.All(v => v.Skip(2).SequenceEqual(expectedFixed)), "Fixed values must persist after zoom and plane learning, even if hidden setup controls change.");
+                    Require(requests.EnumerateArray().Skip(priorRequests).All(r => new[] {
+                        "Fixed in every valid cell: W = W4.", "Fixed in every valid cell: A = A0.",
+                        "Fixed in every valid cell: V = V3.", "Fixed in every valid cell: S = S3."
+                    }.All(r.GetProperty("prompt").GetString()!.Contains)), "Actual HTTP requests must retain all chosen fixed conditions across retries and regeneration.");
                     Require(requests[priorRequests + 1].GetProperty("prompt").GetString() == requests[priorRequests + 2].GetProperty("prompt").GetString(), "HTTP retry must preserve exact prompt.");
                     Console.WriteLine($"PASS: {requests.GetArrayLength() - priorRequests} real HTTP calls through the Postman stand-in; 429, HTML 502, cancellation, Retry, Regenerate, and plane update outcomes verified.");
                 }

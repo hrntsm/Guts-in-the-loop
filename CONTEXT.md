@@ -37,6 +37,9 @@ The unwanted results to avoid across every cell and iteration of an AI rendering
 **Rendering search session**:
 An independent SPS exploration over two through six selected rendering variables (TimeOfDay, RenderingStyle, Weather, Activity, Vegetation, and Season), using 2x zoom and a plane update after four committed selections. Its gallery axes represent SPS coordinates and need not correspond to individual variables.
 
+**Fixed rendering value**:
+The anchor chosen before Start for a rendering variable excluded from SPS exploration: one of five catalog conditions, or one of four seasons. It remains identical in every candidate throughout the session and is shown as fixed in inspector details.
+
 **Rendering matrix**:
 A single AI-generated image containing the candidate cells for one rendering search step. It uses the session's gallery grid, defaulting to 5x5 with rows and columns independently chosen from 3, 5, 7, or 9 before Start.
 
@@ -50,10 +53,10 @@ A rendering matrix slot whose SPS vector contains a non-finite value or a variab
 The rendering variable ordered from monochrome pencil linework on textured paper (0), through lightly watercolor-tinted hand-drawn sketch (0.25), painterly architectural illustration (0.5), and recognizably computer-generated architectural visualization (0.75), to photorealistic architectural photography (1). Intermediate values describe weighted blends of neighboring styles while remaining continuous SPS coordinates.
 
 **TimeOfDay**:
-The rendering variable ordered from just after dawn (0), through mid-morning (0.25), noon (0.5), and post-sunset magic hour (0.75), to night (1). Intermediate values describe transitions between adjacent lighting conditions; the unselected default remains noon.
+The rendering variable ordered from just after dawn (0), through mid-morning (0.25), noon (0.5), and post-sunset magic hour (0.75), to night (1). Intermediate explored values describe transitions between adjacent lighting conditions; fixed values use a chosen anchor, defaulting to noon.
 
 **Season**:
-The rendering variable ordered linearly from spring (0), through summer (1/3) and autumn (2/3), to winter (1), without wrapping winter to spring. It controls seasonal appearance such as bare deciduous branches in winter and the precipitation type under bad weather (summer rain, winter snow); the fixed default 0.5 describes the transition from summer to autumn.
+The rendering variable ordered linearly from spring (0), through summer (1/3) and autumn (2/3), to winter (1), without wrapping winter to spring. It controls seasonal appearance and precipitation type under bad weather; a fixed Season uses one chosen season, defaulting to autumn (2/3).
 
 **Weather**:
 The continuous rendering variable from good weather (0) to bad weather (1). Bad-weather precipitation is rain in spring, summer, and autumn, transitioning continuously through sleet between autumn and winter to snow in winter; winter alone does not request snow.

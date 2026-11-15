@@ -5,6 +5,7 @@ using System.Text;
 namespace SequentialGallery;
 
 internal sealed record RenderingVariable(string Name, string Label, string Key, string[] Anchors, string[] Descriptions) {
+    public double DefaultFixedValue => (double)(Anchors.Length / 2) / (Anchors.Length - 1);
     public string Describe(double value) => Blend(value, i => Descriptions[i]);
     public string Reference(double value) => Blend(value, i => Key + i);
     private string Blend(double value, Func<int, string> text) {
@@ -26,6 +27,7 @@ internal sealed class RenderingSession : IDisposable {
     public static readonly RenderingVariable[] Variables = RenderingPrompts.Current.Variables;
     private readonly SpsEngine engine;
     private readonly int[] variableIndices;
+    private readonly double[] fixedValues;
     private int plane = 1, zoom;
     public int Rows { get; }
     public int Columns { get; }
@@ -35,7 +37,7 @@ internal sealed class RenderingSession : IDisposable {
     public RenderingBatch? Pending { get; private set; }
     public bool Faulted { get; private set; }
 
-    public RenderingSession(int rows, int columns, int[] variableIndices, string? initialPrompt = null, string? negativePrompt = null) {
+    public RenderingSession(int rows, int columns, int[] variableIndices, string? initialPrompt = null, string? negativePrompt = null, double[]? fixedValues = null) {
         initialPrompt ??= DefaultInitialPrompt;
         negativePrompt ??= DefaultNegativePrompt;
         if (variableIndices.Length < 2 || variableIndices.Length > Variables.Length
@@ -46,6 +48,9 @@ internal sealed class RenderingSession : IDisposable {
             throw new ArgumentException($"Initial prompt must be at most {InitialPromptLimit} characters.");
         if (negativePrompt.Length > NegativePromptLimit)
             throw new ArgumentException($"Negative prompt must be at most {NegativePromptLimit} characters.");
+        this.fixedValues = fixedValues == null ? Variables.Select(v => v.DefaultFixedValue).ToArray() : (double[])fixedValues.Clone();
+        if (this.fixedValues.Length != Variables.Length || this.fixedValues.Any(v => !double.IsFinite(v) || v < 0 || v > 1))
+            throw new ArgumentException("Provide one finite fixed value between 0 and 1 for every rendering variable.");
         Rows = rows;
         Columns = columns;
         InitialPrompt = initialPrompt.Trim();
@@ -77,7 +82,7 @@ internal sealed class RenderingSession : IDisposable {
         var grid = engine.Grid();
         var valid = grid.Select(values => values.All(v => double.IsFinite(v) && v >= 0 && v <= 1)).ToArray();
         var values = grid.Select(vector => {
-            var all = Enumerable.Repeat(.5, Variables.Length).ToArray();
+            var all = (double[])fixedValues.Clone();
             for (int j = 0; j < variableIndices.Length; j++) all[variableIndices[j]] = vector[j];
             return all;
         }).ToArray();
@@ -98,7 +103,7 @@ internal sealed class RenderingSession : IDisposable {
             for (int j = 0; j < variable.Descriptions.Length; j++)
                 prompt.AppendLine($"{variable.Key}{j}: {variable.Descriptions[j]}");
         foreach (int i in Enumerable.Range(0, Variables.Length).Except(variableIndices))
-            prompt.AppendLine($"Fixed in every valid cell: {Variables[i].Key} = {Variables[i].Reference(.5)}.");
+            prompt.AppendLine($"Fixed in every valid cell: {Variables[i].Key} = {Variables[i].Reference(fixedValues[i])}.");
         for (int i = 0; i < grid.Length; i++) {
             prompt.Append($"R{i / Columns + 1}C{i % Columns + 1}: ");
             if (!valid[i]) { prompt.AppendLine(definitions.BlankCell); continue; }

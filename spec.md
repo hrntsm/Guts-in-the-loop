@@ -588,7 +588,7 @@ Confirmed TimeOfDay anchors (expanded from the original three-anchor implementat
 | 0.75 | Twilight immediately after sunset, during magic hour. A crimson-to-deep-blue sky; interior lights begin to glow. |
 | 1.0 | Night. A dark sky, illuminated interiors and landscape lighting, with warm light spilling through the windows. |
 
-Intermediate values retain weighted transitions between adjacent anchors. An unselected TimeOfDay remains at 0.5 (noon).
+Intermediate values retain weighted transitions between adjacent anchors. A fixed TimeOfDay uses the chosen anchor, defaulting to noon (0.5).
 
 Confirmed RenderingStyle anchors:
 
@@ -600,7 +600,7 @@ Confirmed RenderingStyle anchors:
 | 0.75 | Architectural CGI visualization. Orderly materials and lighting, with a visibly computer-generated finish. |
 | 1.0 | Photorealistic architectural photograph, indistinguishable from a real photograph. |
 
-Treat this as the PoC's defined style sequence rather than a universal ranking of artistic styles. For an intermediate value, construct a deterministic instruction blending its two neighboring anchors according to their relative weights. Preserve the original continuous SPS coordinate for search and preference learning; do not snap it to an anchor or introduce a separate watercolor variable. An unselected RenderingStyle remains at 0.5, meaning architectural illustration.
+Treat this as the PoC's defined style sequence rather than a universal ranking of artistic styles. For an intermediate value, construct a deterministic instruction blending its two neighboring anchors according to their relative weights. Preserve the original continuous SPS coordinate for search and preference learning; do not snap it to an anchor or introduce a separate watercolor variable. A fixed RenderingStyle uses the chosen anchor, defaulting to architectural illustration (0.5).
 
 Confirmed Season anchors:
 
@@ -611,11 +611,13 @@ Confirmed Season anchors:
 | 2/3 | Autumn: yellow, orange, and red deciduous foliage, with fallen leaves scattered on the ground. |
 | 1.0 | Winter: bare deciduous branches and dormant grass and shrubs; evergreen trees retain their foliage. |
 
-Interpret intermediate values as transitions between neighboring seasons. Use a linear sequence without wrapping winter back to spring; SPS continues to use the existing bounded 0-1 coordinate. An unselected Season stays at 0.5, meaning the transition from summer to autumn. Season describes seasonal appearance, including bare branches on deciduous trees in winter, and determines the precipitation type when Weather requests bad weather (summer rain, winter snow). Winter does not itself request snowfall or snow cover. Vegetation controls planting quantity, while Season controls the seasonal appearance of that planting.
+Interpret intermediate values as transitions between neighboring seasons. Use a linear sequence without wrapping winter back to spring; SPS continues to use the existing bounded 0-1 coordinate. A fixed Season is chosen from Spring (0), Summer (1/3), Autumn (2/3), or Winter (1), defaulting to Autumn instead of the former 0.5 summer/autumn blend. Season describes seasonal appearance, including bare branches on deciduous trees in winter, and determines the precipitation type when Weather requests bad weather (summer rain, winter snow). Winter does not itself request snowfall or snow cover. Vegetation controls planting quantity, while Season controls the seasonal appearance of that planting.
 
 For the same Vegetation value, Season must not change the number or placement of plants or trees. Use clearly legible seasonal cues, including restrained spring blossoms and autumn leaf litter, subject to the fixed Initial and Negative prompts. When Vegetation is near zero, accept weaker visual differences between seasons instead of adding planting solely to illustrate a season.
 
-Before exploration, display a checkbox, name, and endpoint descriptions for each variable. Require at least two selected variables. Support every combination of two through six predefined variables, with no additional selection limit. Unselected variables remain at 0.5. Freeze the selection for the session; changing it requires a new exploration session. User-defined variables are out of scope.
+Before exploration, display a checkbox and name for each variable, with endpoint descriptions available in a tooltip. Checked variables are explored. Each row also has a fixed-value selector populated from the prompt catalog's anchor labels: five choices for TimeOfDay, RenderingStyle, Weather, Activity, and Vegetation, and four for Season. Enable the selector only when that variable is unchecked. The chosen anchor index maps to index / (anchor count - 1); do not force unselected variables to 0.5 or add them to the SPS dimensions. The initial fixed selection is the middle anchor (index floor(anchor count / 2)): noon, architectural illustration, overcast, moderate activity, moderate planting, and autumn. Remember the setup choice while toggling exploration on or off.
+
+Require at least two explored variables. Support every combination of two through six predefined variables, with no additional selection limit. On Start, freeze the selected subset and fixed values for the session; changing either requires a new exploration session. Apply chosen fixed values to every stored candidate vector and the shared API prompt conditions, including season-dependent precipitation, throughout Next, Retry, Regenerate, zoom, and plane changes. Show these values with fixed-variable labels in inspector details. User-defined variables are out of scope.
 
 Confirmed search method: use the existing SPS engine for every supported selection of two through six rendering variables. Do not implement a separate direct-grid search for two variables. Each cell corresponds to one complete parameter vector; a gallery axis can combine variables even when exactly two are selected. Use the same 2x zoom and preference update after four committed selections for every supported variable count.
 
@@ -637,7 +639,7 @@ Confirmed grid: default to 5x5 and let users choose rows and columns independent
 
 Generate one image containing exactly the configured rows and columns of rendering candidates in one image-generation request, regardless of candidate count. Do not generate cells individually or assemble separately generated images into a matrix. Each of the rows-times-columns cells corresponds to a candidate parameter vector from the current search region. Prompt cell assignments, selection overlays, hit testing, and final cropping must all use the same configured dimensions.
 
-Supply the fixed facade reference image and one prompt containing conditions for every configured cell. Include values for every selected variable, with unselected variables fixed at their defaults. For example, cell (0,0) could specify TimeOfDay 0.2, RenderingStyle 0.8, and Weather 0.4; cell (1,0) could specify 0.4, 0.7, and 0.5 respectively. These are examples only; actual values come from candidate generation.
+Supply the fixed facade reference image and one prompt containing conditions for every configured cell. Include values for every explored variable, with unselected variables fixed at their chosen anchors. For example, cell (0,0) could specify TimeOfDay 0.2, RenderingStyle 0.8, and Weather 0.4; cell (1,0) could specify 0.4, 0.7, and 0.5 respectively. These are examples only; actual explored values come from candidate generation.
 
 For any cell with non-finite coordinates or a variable outside 0-1, retain its grid position and request a blank placeholder instead of assigning rendering conditions. WPF must cover that cell with an `Out of range` overlay and disable selection regardless of what the AI draws underneath. Only valid cells receive rendering conditions and can be selected or submitted to SPS. Do not compact the remaining cells or change their row/column-to-vector mapping.
 
@@ -716,7 +718,7 @@ The implementation covers the following criteria. Automated WPF checks use the r
 
 - [x] Select any combination of two through six rendering variables through checkboxes, including Season.
 - [x] Include watercolor-style conditions in the RenderingStyle mapping.
-- [x] Keep unselected variables fixed at 0.5.
+- [x] Choose unselected variables' fixed values from their catalog anchors (five choices, or four seasons) and retain them throughout the session.
 - [x] Default to a 5x5 rendering grid and support independent row and column choices of 3, 5, 7, or 9, fixed for each session.
 - [x] Generate rows-times-columns candidate vectors for the selected variables.
 - [x] Use the existing SPS implementation for every selection of two through six variables, including 2x zoom and plane updates after four committed selections.
@@ -747,12 +749,14 @@ The six-variable prompt-catalog revision repeated the ten-call local WPF flow su
 
 The separate-prompts revision repeated the ten-call flow with distinct Initial and Negative prompt text, verified both were frozen and displayed separately through Finish, and confirmed both persisted in actual HTTP prompts through retry, regeneration, and cancellation. Empty optional prompts, negative-only instructions, and grids up to 9x9 with both fields at their 2000-character limits were also checked. Effectiveness of the negative instructions on real generated imagery remains unverified.
 
+The fixed-value-selector revision checked all 29 catalog anchor choices in candidate vectors and request conditions. The ten-call WPF flow explored TimeOfDay and RenderingStyle while fixing Weather to heavy precipitation, Activity to empty, Vegetation to rich planting, and Season to winter. Assertions verified selector enabling and locking, fixed-value snapshots, inspector correspondence, and persistence of fixed conditions across retries, regeneration, cancellation, zoom, and a learned plane update. No paid generation was made for this revision.
+
 ### 17.9 Comparison with the current implementation
 
 | Area | Existing geometry implementation | Agreed rendering behavior |
 |---|---|---|
 | Entry and handoff | Finish reapplies the selected sliders and closes the window | Confirmed: separate AI rendering component; capture the active viewport once on Start; future workflow integration deferred |
-| Variables | Direct Number Slider references, at least two | Six predefined atmosphere variables including Season, with watercolor-style coverage; selected subset varies, others remain at 0.5 |
+| Variables | Direct Number Slider references, at least two | Six predefined atmosphere variables including Season, with watercolor-style coverage; selected subset varies, others use chosen fixed anchors |
 | Search engine | SPS for every dimension count of two or more | Confirmed: reuse existing SPS for all two-through-six-variable selections; no direct-grid exception |
 | Search plane | Authors' plane evaluation through the C ABI | Reuse that evaluation; the proposal's affine equation is only illustrative |
 | Grid | Configurable odd rows and columns, default 5x5 | Confirmed: same settings and default; one AI matrix image contains all configured cells |

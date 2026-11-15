@@ -20,6 +20,7 @@ internal partial class RenderingWindow : Window {
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly Stopwatch elapsed = new();
     private CheckBox[] variables = Array.Empty<CheckBox>();
+    private ComboBox[] fixedValueChoices = Array.Empty<ComboBox>();
     private Button[] cells = Array.Empty<Button>();
     private RenderingSession? session;
     private RenderingApi? api;
@@ -42,14 +43,23 @@ internal partial class RenderingWindow : Window {
         InitializeComponent();
         InitialPrompt.Text = RenderingSession.DefaultInitialPrompt;
         NegativePrompt.Text = RenderingSession.DefaultNegativePrompt;
-        variables = RenderingSession.Variables.Select(variable => {
+        fixedValueChoices = RenderingSession.Variables.Select(variable => new ComboBox {
+            ItemsSource = variable.Anchors, SelectedIndex = variable.Anchors.Length / 2,
+            Width = 220, Margin = new Thickness(8, 3, 0, 3), IsEnabled = false,
+            ToolTip = "Fixed value when this variable is not explored."
+        }).ToArray();
+        variables = RenderingSession.Variables.Select((variable, i) => {
             var option = new CheckBox {
-                Content = $"{variable.Name}   ·   {variable.Anchors[0]} → {variable.Anchors[^1]}",
-                IsChecked = true, Foreground = Brushes.White, Margin = new Thickness(0, 5, 0, 5)
+                Content = variable.Name, ToolTip = $"Explore {variable.Anchors[0]} → {variable.Anchors[^1]}",
+                IsChecked = true, Foreground = Brushes.White, Margin = new Thickness(0, 5, 12, 5), VerticalAlignment = VerticalAlignment.Center
             };
             option.Checked += (_, _) => UpdateControls();
             option.Unchecked += (_, _) => UpdateControls();
-            VariableOptions.Children.Add(option);
+            var row = new DockPanel();
+            DockPanel.SetDock(fixedValueChoices[i], Dock.Right);
+            row.Children.Add(fixedValueChoices[i]);
+            row.Children.Add(option);
+            VariableOptions.Children.Add(row);
             return option;
         }).ToArray();
         timer.Tick += (_, _) => Status.Text = $"{activity} · {elapsed.Elapsed.TotalSeconds:F0}s elapsed. Cancel stops waiting; API usage may still apply.";
@@ -79,7 +89,10 @@ internal partial class RenderingWindow : Window {
         FinishButton.IsEnabled = ready && !final && hasImage && selected >= 0;
         CancelButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         BusyProgress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-        foreach (var variable in variables) variable.IsEnabled = ready && session == null;
+        for (int i = 0; i < variables.Length; i++) {
+            variables[i].IsEnabled = ready && session == null && !final;
+            fixedValueChoices[i].IsEnabled = ready && session == null && !final && variables[i].IsChecked != true;
+        }
         RowsChoice.IsEnabled = ColumnsChoice.IsEnabled = ready && session == null;
         InitialPrompt.IsReadOnly = busy || session != null || final;
         NegativePrompt.IsReadOnly = busy || session != null || final;
@@ -100,11 +113,12 @@ internal partial class RenderingWindow : Window {
         string initialPrompt = InitialPrompt.Text;
         string negativePrompt = NegativePrompt.Text;
         int[] indices = variables.Select((v, i) => (v, i)).Where(x => x.v.IsChecked == true).Select(x => x.i).ToArray();
+        double[] fixedValues = fixedValueChoices.Select((choice, i) => (double)choice.SelectedIndex / (RenderingSession.Variables[i].Anchors.Length - 1)).ToArray();
         await RunAsync(async token => {
             activity = "Initializing rendering exploration";
             api = createApi();
             reference = captureReference();
-            session = await Task.Run(() => new RenderingSession(rows, columns, indices, initialPrompt, negativePrompt));
+            session = await Task.Run(() => new RenderingSession(rows, columns, indices, initialPrompt, negativePrompt, fixedValues));
             if (closed) token.ThrowIfCancellationRequested();
             frozenInitialPrompt = session.InitialPrompt;
             frozenNegativePrompt = session.NegativePrompt;

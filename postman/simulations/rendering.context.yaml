@@ -58,6 +58,13 @@ assumptions:
     verification: RenderingSmoke passed the ten-call Postman flow on the dirty d1dd8cb prompt-catalog tree. Clear winter inspector details did not request precipitation; heavy winter details resolved to snow; the autumn-to-winter midpoint resolved to equal rain and snow. This does not establish that the real image model follows these descriptions or distinguishes the styles visually; no paid generation was made for this revision.
     source: src/SequentialGallery/Prompts/rendering.json; src/SequentialGallery/RenderingSession.cs; smoke/RenderingSmoke/Program.cs
     updated_at: '2026-11-14'
+  - id: chosen-fixed-values
+    status: supported
+    claim: In the local fixed-value-selector run, unselected variables retained their chosen catalog anchors in every candidate and actual HTTP prompt throughout the exercised exploration flow.
+    reason: The production WPF flow explored two variables with four selected fixed conditions; direct session checks covered all 29 fixed anchors and cloned input values, while the inspector checks compared stored values to displayed details.
+    verification: On dirty 2540e82, RenderingSmoke passed the ten-call Postman flow with heavy precipitation, empty activity, rich planting, and winter fixed. The UI enabled dropdowns only for unchecked variables, locked them on Start, and ignored a programmatic change to the hidden season selector after Start. Requests retained W4, A0, V3, and S3 through Retry, Regenerate, cancellation, zoom, and a learned plane update. This establishes caller state and prompt construction, not visual adherence by the real image provider.
+    source: smoke/RenderingSmoke/Program.cs; src/SequentialGallery/RenderingSession.cs; src/SequentialGallery/RenderingWindow.xaml.cs
+    updated_at: '2026-11-14'
 fingerprints:
   - id: initial-rendering
     date: '2026-11-14'
@@ -73,3 +80,8 @@ fingerprints:
     commit: 95a83a7
     cli: 1.75.0
     notes: Dirty tree with separate Initial and Negative prompt fields, captured inspector values, and labeled request sections.
+  - id: fixed-value-selectors
+    date: '2026-11-14'
+    commit: 2540e82
+    cli: 1.75.0
+    notes: Dirty tree with anchor dropdowns for unselected variables and captured session fixed values.

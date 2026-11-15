@@ -43,7 +43,7 @@
    <ScrollViewer x:Name="SetupPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
    <StackPanel MaxWidth="760" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16">
     <TextBlock Text="Rendering atmosphere" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
-    <TextBlock Text="Checked variables are explored; unchecked variables stay at 0.5." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,0,0,12"/>
+    <TextBlock Text="Check variables to explore. Uncheck a variable to choose its fixed value from the list. Fixed values are frozen on Start." TextWrapping="Wrap" Foreground="#AAB8C8" Margin="0,0,0,12"/>
     <StackPanel x:Name="VariableOptions"/>
     <WrapPanel Margin="0,16,0,8">
      <TextBlock Text="Rows" VerticalAlignment="Center" Margin="0,0,8,0"/>
